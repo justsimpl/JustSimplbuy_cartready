@@ -940,7 +940,8 @@ async def get_all_orders(
     limit: int = Query(20, ge=1, le=100),
     status: Optional[str] = Query(None),
     user_id: Optional[str] = Query(None),
-    search: Optional[str] = Query(None)
+    search: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
 ):
     """Get all orders with pagination and filtering"""
     query = {}
@@ -976,7 +977,7 @@ async def get_all_orders(
     }
 
 @api_router.get("/admin/orders/{order_id}")
-async def get_order_by_id(order_id: str):
+async def get_order_by_id(order_id: str, admin_user: dict = Depends(get_admin_user)):
     """Get a specific order by ID"""
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
@@ -994,7 +995,7 @@ async def get_order_by_id(order_id: str):
     return order
 
 @api_router.post("/admin/orders")
-async def create_order(order_data: OrderCreate):
+async def create_order(order_data: OrderCreate, admin_user: dict = Depends(get_admin_user)):
     """Create a new order"""
     # Verify user exists
     user = await db.users.find_one({"id": order_data.user_id})
@@ -1030,7 +1031,7 @@ async def create_order(order_data: OrderCreate):
     return response_doc
 
 @api_router.put("/admin/orders/{order_id}")
-async def update_order(order_id: str, order_data: OrderUpdate):
+async def update_order(order_id: str, order_data: OrderUpdate, admin_user: dict = Depends(get_admin_user)):
     """Update an order"""
     order = await db.orders.find_one({"id": order_id})
     if not order:
@@ -1060,7 +1061,7 @@ async def update_order(order_id: str, order_data: OrderUpdate):
     return updated_order
 
 @api_router.delete("/admin/orders/{order_id}")
-async def delete_order(order_id: str):
+async def delete_order(order_id: str, admin_user: dict = Depends(get_admin_user)):
     """Delete an order"""
     result = await db.orders.delete_one({"id": order_id})
     if result.deleted_count == 0:
