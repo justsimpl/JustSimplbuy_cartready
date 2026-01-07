@@ -1098,28 +1098,36 @@ async def create_user_admin(user_data: AdminUserCreate, request: Request, admin_
     }
 
 @api_router.put("/admin/users/{user_id}")
-async def update_user_admin(user_id: str, user_data: AdminUserUpdate, admin_user: dict = Depends(get_admin_user)):
+async def update_user_admin(user_id: str, user_data: AdminUserUpdate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Update a user (admin)"""
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     update_data = {}
+    changes = {}
     if user_data.email is not None:
         # Check if email is taken by another user
         existing = await db.users.find_one({"email": user_data.email, "id": {"$ne": user_id}})
         if existing:
             raise HTTPException(status_code=400, detail="Email already in use")
         update_data["email"] = user_data.email
+        changes["email"] = {"from": user.get("email"), "to": user_data.email}
     if user_data.name is not None:
         update_data["name"] = user_data.name
+        changes["name"] = {"from": user.get("name"), "to": user_data.name}
     if user_data.role is not None:
         update_data["role"] = user_data.role
+        changes["role"] = {"from": user.get("role"), "to": user_data.role}
     if user_data.password is not None:
         update_data["password"] = hash_password(user_data.password)
+        changes["password"] = "changed"
     
     if update_data:
         await db.users.update_one({"id": user_id}, {"$set": update_data})
+        
+        # Audit log
+        await log_audit(admin_user, "UPDATE", "user", user_id, changes, request)
     
     updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     orders_count = await db.orders.count_documents({"user_id": user_id})
@@ -1128,8 +1136,12 @@ async def update_user_admin(user_id: str, user_data: AdminUserUpdate, admin_user
     return updated_user
 
 @api_router.delete("/admin/users/{user_id}")
-async def delete_user_admin(user_id: str, admin_user: dict = Depends(get_admin_user)):
+async def delete_user_admin(user_id: str, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Delete a user (admin)"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     result = await db.users.delete_one({"id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1138,6 +1150,13 @@ async def delete_user_admin(user_id: str, admin_user: dict = Depends(get_admin_u
     await db.wishlists.delete_many({"user_id": user_id})
     await db.alerts.delete_many({"user_id": user_id})
     await db.saved_searches.delete_many({"user_id": user_id})
+    
+    # Audit log
+    await log_audit(
+        admin_user, "DELETE", "user", user_id,
+        {"email": user.get("email"), "name": user.get("name")},
+        request
+    )
     
     return {"message": "User deleted successfully"}
 
