@@ -70,7 +70,7 @@ export default function AdminOrders() {
       if (searchQuery) params.append('search', searchQuery);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       
-      const response = await axios.get(`${API}/admin/orders?${params}`);
+      const response = await axios.get(`${API}/admin/orders?${params}`, { headers: getAuthHeader() });
       setOrders(response.data.orders);
       setTotalPages(response.data.total_pages);
       setTotal(response.data.total);
@@ -83,7 +83,7 @@ export default function AdminOrders() {
 
   const fetchLookups = async () => {
     try {
-      const response = await axios.get(`${API}/admin/lookups`);
+      const response = await axios.get(`${API}/admin/lookups`, { headers: getAuthHeader() });
       setLookups(response.data);
     } catch (error) {
       console.error('Failed to load lookups');
@@ -92,7 +92,7 @@ export default function AdminOrders() {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get(`${API}/admin/users?limit=100`);
+      const response = await axios.get(`${API}/admin/users?limit=100`, { headers: getAuthHeader() });
       setUsers(response.data.users);
     } catch (error) {
       console.error('Failed to load users');
@@ -108,7 +108,7 @@ export default function AdminOrders() {
     
     setFormLoading(true);
     try {
-      await axios.post(`${API}/admin/orders`, formData);
+      await axios.post(`${API}/admin/orders`, formData, { headers: getAuthHeader() });
       toast.success('Order created successfully');
       setCreateDialogOpen(false);
       resetForm();
