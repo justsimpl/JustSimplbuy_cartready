@@ -1223,7 +1223,7 @@ async def get_order_by_id(order_id: str, admin_user: dict = Depends(get_admin_us
     return order
 
 @api_router.post("/admin/orders")
-async def create_order(order_data: OrderCreate, admin_user: dict = Depends(get_admin_user)):
+async def create_order(order_data: OrderCreate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Create a new order"""
     # Verify user exists
     user = await db.users.find_one({"id": order_data.user_id})
@@ -1251,6 +1251,13 @@ async def create_order(order_data: OrderCreate, admin_user: dict = Depends(get_a
     
     await db.orders.insert_one(order_doc)
     
+    # Audit log
+    await log_audit(
+        admin_user, "CREATE", "order", order_id,
+        {"user_id": order_data.user_id, "total_amount": total_amount, "items_count": len(order_data.items)},
+        request
+    )
+    
     # Remove MongoDB _id field and add user info
     response_doc = {k: v for k, v in order_doc.items() if k != "_id"}
     response_doc["user_name"] = user.get("name")
@@ -1259,26 +1266,34 @@ async def create_order(order_data: OrderCreate, admin_user: dict = Depends(get_a
     return response_doc
 
 @api_router.put("/admin/orders/{order_id}")
-async def update_order(order_id: str, order_data: OrderUpdate, admin_user: dict = Depends(get_admin_user)):
+async def update_order(order_id: str, order_data: OrderUpdate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Update an order"""
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
     update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    changes = {}
     
     if order_data.status is not None:
         if order_data.status not in ORDER_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {ORDER_STATUSES}")
+        changes["status"] = {"from": order.get("status"), "to": order_data.status}
         update_data["status"] = order_data.status
     if order_data.shipping_address is not None:
         update_data["shipping_address"] = order_data.shipping_address
+        changes["shipping_address"] = "updated"
     if order_data.billing_address is not None:
         update_data["billing_address"] = order_data.billing_address
+        changes["billing_address"] = "updated"
     if order_data.notes is not None:
         update_data["notes"] = order_data.notes
+        changes["notes"] = "updated"
     
     await db.orders.update_one({"id": order_id}, {"$set": update_data})
+    
+    # Audit log
+    await log_audit(admin_user, "UPDATE", "order", order_id, changes, request)
     
     updated_order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     user = await db.users.find_one({"id": updated_order.get("user_id")}, {"_id": 0, "name": 1, "email": 1})
