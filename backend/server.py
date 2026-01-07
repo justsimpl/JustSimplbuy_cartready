@@ -1080,7 +1080,8 @@ async def get_all_shipments(
     limit: int = Query(20, ge=1, le=100),
     status: Optional[str] = Query(None),
     carrier: Optional[str] = Query(None),
-    order_id: Optional[str] = Query(None)
+    order_id: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
 ):
     """Get all shipments with pagination and filtering"""
     query = {}
@@ -1116,7 +1117,7 @@ async def get_all_shipments(
     }
 
 @api_router.get("/admin/shipments/{shipment_id}")
-async def get_shipment_by_id(shipment_id: str):
+async def get_shipment_by_id(shipment_id: str, admin_user: dict = Depends(get_admin_user)):
     """Get a specific shipment by ID"""
     shipment = await db.shipments.find_one({"id": shipment_id}, {"_id": 0})
     if not shipment:
@@ -1129,7 +1130,7 @@ async def get_shipment_by_id(shipment_id: str):
     return shipment
 
 @api_router.post("/admin/shipments")
-async def create_shipment(shipment_data: ShipmentCreate):
+async def create_shipment(shipment_data: ShipmentCreate, admin_user: dict = Depends(get_admin_user)):
     """Create a new shipment"""
     # Verify order exists
     order = await db.orders.find_one({"id": shipment_data.order_id})
@@ -1173,7 +1174,7 @@ async def create_shipment(shipment_data: ShipmentCreate):
     return response_doc
 
 @api_router.put("/admin/shipments/{shipment_id}")
-async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate):
+async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate, admin_user: dict = Depends(get_admin_user)):
     """Update a shipment"""
     shipment = await db.shipments.find_one({"id": shipment_id})
     if not shipment:
@@ -1216,7 +1217,7 @@ async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate):
     return await db.shipments.find_one({"id": shipment_id}, {"_id": 0})
 
 @api_router.delete("/admin/shipments/{shipment_id}")
-async def delete_shipment(shipment_id: str):
+async def delete_shipment(shipment_id: str, admin_user: dict = Depends(get_admin_user)):
     """Delete a shipment"""
     result = await db.shipments.delete_one({"id": shipment_id})
     if result.deleted_count == 0:
@@ -1227,7 +1228,7 @@ async def delete_shipment(shipment_id: str):
 # ============ ADMIN: STATS & LOOKUPS ============
 
 @api_router.get("/admin/stats")
-async def get_admin_stats():
+async def get_admin_stats(admin_user: dict = Depends(get_admin_user)):
     """Get admin dashboard statistics"""
     total_users = await db.users.count_documents({})
     total_orders = await db.orders.count_documents({})
@@ -1266,7 +1267,7 @@ async def get_admin_stats():
     }
 
 @api_router.get("/admin/lookups")
-async def get_admin_lookups():
+async def get_admin_lookups(admin_user: dict = Depends(get_admin_user)):
     """Get lookup values for dropdowns"""
     return {
         "order_statuses": ORDER_STATUSES,
