@@ -726,8 +726,18 @@ async def login(credentials: UserLogin):
     
     token = create_token(user["id"], user["email"])
     
+    # Create session in Redis
+    session_data = {
+        "email": user["email"],
+        "name": user["name"],
+        "role": user.get("role", "user"),
+        "token": token
+    }
+    session_id = await cache.create_session(user["id"], session_data)
+    
     return {
         "token": token,
+        "session_id": session_id if session_id else None,
         "user": {
             "id": user["id"],
             "email": user["email"],
@@ -736,6 +746,19 @@ async def login(credentials: UserLogin):
             "created_at": user["created_at"]
         }
     }
+
+@api_router.post("/auth/logout")
+async def logout(current_user: dict = Depends(get_current_user)):
+    """Logout current session"""
+    # Delete all sessions for this user
+    await cache.delete_all_user_sessions(current_user["id"])
+    return {"message": "Logged out successfully"}
+
+@api_router.get("/auth/sessions")
+async def get_sessions(current_user: dict = Depends(get_current_user)):
+    """Get active session count for current user"""
+    count = await cache.get_active_sessions_count(current_user["id"])
+    return {"active_sessions": count}
 
 @api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
