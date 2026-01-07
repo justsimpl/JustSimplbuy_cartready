@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AdminLayout } from '../components/AdminLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { AdminLayout } from '../../components/AdminLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
 import { 
   Users, ShoppingCart, Truck, DollarSign, 
   TrendingUp, Package, Clock, CheckCircle, Loader2 
