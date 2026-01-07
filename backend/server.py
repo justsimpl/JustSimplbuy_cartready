@@ -1158,7 +1158,9 @@ async def create_shipment(shipment_data: ShipmentCreate):
             {"$set": {"status": "shipped", "updated_at": now}}
         )
     
-    return shipment_doc
+    # Remove MongoDB _id field before returning
+    response_doc = {k: v for k, v in shipment_doc.items() if k != "_id"}
+    return response_doc
 
 @api_router.put("/admin/shipments/{shipment_id}")
 async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate):
