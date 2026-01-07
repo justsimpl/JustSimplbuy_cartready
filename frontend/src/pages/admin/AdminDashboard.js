@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Users, ShoppingCart, Truck, DollarSign, 
   TrendingUp, Package, Clock, CheckCircle, Loader2 
@@ -12,6 +13,7 @@ import axios from 'axios';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function AdminDashboard() {
+  const { getAuthHeader } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +23,7 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API}/admin/stats`);
+      const response = await axios.get(`${API}/admin/stats`, { headers: getAuthHeader() });
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
