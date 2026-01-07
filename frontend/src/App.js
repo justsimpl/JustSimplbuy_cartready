@@ -16,6 +16,12 @@ import CategoriesPage from "./pages/Categories";
 import WishlistPage from "./pages/Wishlist";
 import AlertsPage from "./pages/Alerts";
 
+// Admin Pages
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminShipments from "./pages/admin/AdminShipments";
+
 // Layout component for pages that need navbar
 const Layout = ({ children, showNavbar = true }) => {
   return (
@@ -44,6 +50,12 @@ function App() {
           {/* Auth pages - no navbar */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* Admin pages */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/shipments" element={<AdminShipments />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />
