@@ -738,6 +738,102 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     current_user["role"] = current_user.get("role", "user")
     return current_user
 
+# ============ PASSWORD RESET ROUTES ============
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request_data: ForgotPasswordRequest):
+    """Request a password reset token"""
+    user = await db.users.find_one({"email": request_data.email})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"message": "If an account exists with this email, a reset link has been sent."}
+    
+    token = await create_password_reset_token(request_data.email)
+    
+    # In production, send email here
+    # For development, we'll return the token
+    # TODO: Integrate with email service (SendGrid, etc.)
+    
+    # Log this action
+    await db.audit_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "admin_id": None,
+        "admin_name": "System",
+        "admin_email": "system@pricewise.com",
+        "action": "PASSWORD_RESET_REQUEST",
+        "resource_type": "auth",
+        "resource_id": user.get("id"),
+        "details": {"email": request_data.email},
+        "ip_address": None,
+        "user_agent": None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # For development: return token (remove in production)
+    is_dev = os.environ.get("ENV", "development") == "development"
+    
+    return {
+        "message": "If an account exists with this email, a reset link has been sent.",
+        "reset_token": token if is_dev else None,
+        "reset_url": f"/reset-password?token={token}" if is_dev else None
+    }
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request_data: ResetPasswordRequest):
+    """Reset password using a valid token"""
+    reset_doc = await validate_reset_token(request_data.token)
+    
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    if len(request_data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Update user password
+    hashed_password = hash_password(request_data.new_password)
+    result = await db.users.update_one(
+        {"email": reset_doc["email"]},
+        {"$set": {"password": hashed_password}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Failed to update password")
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"token": request_data.token},
+        {"$set": {"used": True}}
+    )
+    
+    # Log this action
+    user = await db.users.find_one({"email": reset_doc["email"]})
+    await db.audit_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "admin_id": None,
+        "admin_name": "System",
+        "admin_email": "system@pricewise.com",
+        "action": "PASSWORD_RESET_COMPLETE",
+        "resource_type": "auth",
+        "resource_id": user.get("id") if user else None,
+        "details": {"email": reset_doc["email"]},
+        "ip_address": None,
+        "user_agent": None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"message": "Password has been reset successfully. You can now login with your new password."}
+
+@api_router.get("/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Verify if a reset token is valid"""
+    reset_doc = await validate_reset_token(token)
+    
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    return {"valid": True, "email": reset_doc["email"]}
+
 # ============ PRODUCTS ROUTES ============
 
 @api_router.get("/products")
