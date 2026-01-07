@@ -1641,7 +1641,55 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {"status": "healthy"}
+    cache_stats = await cache.get_cache_stats()
+    return {
+        "status": "healthy",
+        "cache": cache_stats
+    }
+
+# ============ CACHE STATS & MANAGEMENT ============
+
+@api_router.get("/admin/cache/stats")
+async def get_cache_stats(admin_user: dict = Depends(get_admin_user)):
+    """Get Redis cache statistics (admin only)"""
+    stats = await cache.get_cache_stats()
+    return stats
+
+@api_router.post("/admin/cache/invalidate/products")
+async def invalidate_product_cache(admin_user: dict = Depends(get_admin_user)):
+    """Invalidate all product cache (admin only)"""
+    if cache.is_connected():
+        keys = await cache.redis.keys("product:*")
+        keys.extend(await cache.redis.keys("products:*"))
+        if keys:
+            await cache.redis.delete(*keys)
+        return {"message": f"Invalidated {len(keys)} cache entries"}
+    return {"message": "Cache not connected"}
+
+@api_router.get("/rate-limit/status")
+async def get_rate_limit_status(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)):
+    """Get current rate limit status for the requester"""
+    # Determine identifier and limit
+    if credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            user_id = payload.get("user_id")
+            user = await db.users.find_one({"id": user_id})
+            if user:
+                identifier = f"user:{user_id}"
+                limit = ADMIN_RATE_LIMIT if user.get("role") == "admin" else DEFAULT_RATE_LIMIT
+            else:
+                identifier = f"ip:{request.client.host}"
+                limit = ANONYMOUS_RATE_LIMIT
+        except:
+            identifier = f"ip:{request.client.host}"
+            limit = ANONYMOUS_RATE_LIMIT
+    else:
+        identifier = f"ip:{request.client.host}"
+        limit = ANONYMOUS_RATE_LIMIT
+    
+    status = await cache.get_rate_limit_status(identifier, limit)
+    return status
 
 # Include router and add middleware
 app.include_router(api_router)
@@ -1660,6 +1708,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ============ STARTUP/SHUTDOWN EVENTS ============
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize Redis cache on startup"""
+    await cache.connect()
+    logger.info("Application started with Redis caching")
+
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    await cache.disconnect()
     client.close()
+    logger.info("Application shutdown complete")
