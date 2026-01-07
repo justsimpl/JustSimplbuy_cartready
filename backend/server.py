@@ -622,6 +622,19 @@ async def login(credentials: UserLogin):
             "id": user["id"],
             "email": user["email"],
             "name": user["name"],
+            "role": user.get("role", "user"),
+            "created_at": user["created_at"]
+        }
+    }
+    
+    token = create_token(user["id"], user["email"])
+    
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
             "created_at": user["created_at"]
         }
     }
