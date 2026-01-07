@@ -58,6 +58,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    session_id: Optional[str] = None
     user: UserResponse
 
 class Product(BaseModel):
