@@ -1725,6 +1725,71 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ============ RATE LIMITING MIDDLEWARE ============
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Rate limiting middleware using Redis"""
+    
+    # Endpoints to skip rate limiting
+    SKIP_PATHS = ["/api/health", "/api/", "/docs", "/openapi.json", "/redoc"]
+    
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for certain paths
+        if any(request.url.path.startswith(path) for path in self.SKIP_PATHS):
+            return await call_next(request)
+        
+        # Skip if Redis not connected
+        if not cache.is_connected():
+            return await call_next(request)
+        
+        # Determine identifier and limit based on auth
+        identifier = f"ip:{request.client.host}"
+        limit = ANONYMOUS_RATE_LIMIT
+        
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                token = auth_header.split(" ")[1]
+                payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                user_id = payload.get("user_id")
+                if user_id:
+                    # Check user role for limit
+                    user = await db.users.find_one({"id": user_id}, {"_id": 0, "role": 1})
+                    if user:
+                        identifier = f"user:{user_id}"
+                        limit = ADMIN_RATE_LIMIT if user.get("role") == "admin" else DEFAULT_RATE_LIMIT
+            except:
+                pass  # Use IP-based limiting for invalid tokens
+        
+        # Check rate limit
+        allowed, remaining, reset_time = await cache.check_rate_limit(identifier, limit)
+        
+        if not allowed:
+            return Response(
+                content='{"detail":"Rate limit exceeded. Please try again later."}',
+                status_code=429,
+                media_type="application/json",
+                headers={
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(reset_time),
+                    "Retry-After": str(reset_time)
+                }
+            )
+        
+        # Process request and add rate limit headers
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(reset_time)
+        
+        return response
+
+# Add rate limiting middleware (must be added after CORS middleware)
+app.add_middleware(RateLimitMiddleware)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
