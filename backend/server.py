@@ -837,16 +837,6 @@ async def reset_password(request_data: ResetPasswordRequest):
     
     return {"message": "Password has been reset successfully. You can now login with your new password."}
 
-@api_router.get("/auth/verify-reset-token/{token}")
-async def verify_reset_token(token: str):
-    """Verify if a reset token is valid"""
-    reset_doc = await validate_reset_token(token)
-    
-    if not reset_doc:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    
-    return {"valid": True, "email": reset_doc["email"]}
-
 # ============ PRODUCTS ROUTES ============
 
 @api_router.get("/products")
