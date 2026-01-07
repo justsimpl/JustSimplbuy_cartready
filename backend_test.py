@@ -659,7 +659,7 @@ class AmazonAPITester:
         return success and success2
 
 def main():
-    print("🚀 Starting Amazon API Catalog Backend Tests")
+    print("🚀 Starting PriceWise Admin Panel Backend Tests")
     print("=" * 50)
     
     tester = AmazonAPITester()
@@ -674,6 +674,12 @@ def main():
     tester.test_price_alerts()
     tester.test_saved_searches()
     tester.test_comparison()
+    
+    # Run admin-specific tests
+    tester.test_admin_stats_and_lookups()
+    tester.test_admin_users()
+    tester.test_admin_orders()
+    tester.test_admin_shipments()
     
     # Print final results
     print("\n" + "=" * 50)
