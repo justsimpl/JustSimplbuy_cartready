@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -23,6 +23,9 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Redis cache import
+from redis_cache import cache, ANONYMOUS_RATE_LIMIT, DEFAULT_RATE_LIMIT, ADMIN_RATE_LIMIT
+
 # JWT Config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pricewise-secret-key-2024')
 JWT_ALGORITHM = "HS256"
@@ -30,6 +33,7 @@ JWT_EXPIRATION_HOURS = 24
 RESET_TOKEN_EXPIRATION_HOURS = 1
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
