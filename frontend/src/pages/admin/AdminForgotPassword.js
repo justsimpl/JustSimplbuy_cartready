@@ -88,7 +88,7 @@ export default function AdminForgotPasswordPage() {
                     <p className="text-sm text-amber-400 font-medium mb-2">Development Mode</p>
                     <p className="text-sm text-amber-300 mb-2">Token: <code className="bg-amber-900/50 px-1 rounded">{resetToken.substring(0, 20)}...</code></p>
                     <Link 
-                      to={`/admin/reset-password?token=${resetToken}`}
+                      to={`/reset-password?token=${resetToken}`}
                       className="text-sm text-indigo-400 hover:underline"
                     >
                       Click here to reset password →
