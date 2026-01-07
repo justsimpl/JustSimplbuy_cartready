@@ -1061,7 +1061,7 @@ async def get_user_by_id(user_id: str, admin_user: dict = Depends(get_admin_user
     return user
 
 @api_router.post("/admin/users")
-async def create_user_admin(user_data: AdminUserCreate, admin_user: dict = Depends(get_admin_user)):
+async def create_user_admin(user_data: AdminUserCreate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Create a new user (admin)"""
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
@@ -1080,6 +1080,13 @@ async def create_user_admin(user_data: AdminUserCreate, admin_user: dict = Depen
     }
     
     await db.users.insert_one(user_doc)
+    
+    # Audit log
+    await log_audit(
+        admin_user, "CREATE", "user", user_id,
+        {"email": user_data.email, "name": user_data.name, "role": user_data.role},
+        request
+    )
     
     return {
         "id": user_id,
