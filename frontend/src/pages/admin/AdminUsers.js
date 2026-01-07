@@ -98,7 +98,7 @@ export default function AdminUsers() {
       if (formData.role) updateData.role = formData.role;
       if (formData.password) updateData.password = formData.password;
       
-      await axios.put(`${API}/admin/users/${selectedUser.id}`, updateData);
+      await axios.put(`${API}/admin/users/${selectedUser.id}`, updateData, { headers: getAuthHeader() });
       toast.success('User updated successfully');
       setEditDialogOpen(false);
       setSelectedUser(null);
@@ -112,7 +112,7 @@ export default function AdminUsers() {
 
   const handleDelete = async (userId) => {
     try {
-      await axios.delete(`${API}/admin/users/${userId}`);
+      await axios.delete(`${API}/admin/users/${userId}`, { headers: getAuthHeader() });
       toast.success('User deleted successfully');
       fetchUsers();
     } catch (error) {
