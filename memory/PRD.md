@@ -18,7 +18,9 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - Saved searches
 - User authentication
 - Affiliate link generation
-- **Admin Panel for Users, Orders, Shipments**
+- Admin Panel for Users, Orders, Shipments
+- Forgot Password functionality
+- Admin Audit Logging
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn/UI
@@ -26,9 +28,9 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - **Database**: MongoDB
 - **Auth**: JWT-based
 
-## What's Been Implemented (Jan 2025)
+## What's Been Implemented
 
-### Phase 1 - Core Product Features
+### Phase 1 - Core Product Features (Jan 2025)
 - [x] Full backend API with products, categories, auth, wishlist, alerts, saved searches
 - [x] Mock product data (16 products across 10 categories)
 - [x] Home page with hero search and featured products
@@ -47,6 +49,15 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - [x] Shipments Management - CRUD with carrier tracking
 - [x] Status workflows (pending → shipped → delivered)
 - [x] Admin sidebar navigation
+- [x] Role-based admin authentication
+
+### Phase 3 - Security Features (Jan 7, 2025)
+- [x] Forgot Password flow (token-based, dev mode returns token)
+- [x] Reset Password with token verification
+- [x] Admin Forgot Password page
+- [x] Admin Audit Logging for all CRUD operations
+- [x] Audit Logs viewer page with filters (action, resource type)
+- [x] Password reset audit trail
 
 ## API Endpoints
 
@@ -56,6 +67,11 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - `GET /api/categories` - All categories
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
+
+### Password Reset APIs (Public)
+- `POST /api/auth/forgot-password` - Request password reset token
+- `GET /api/auth/verify-reset-token/{token}` - Verify reset token
+- `POST /api/auth/reset-password` - Reset password with token
 
 ### User APIs (Auth Required)
 - `GET /api/wishlist` - User's wishlist
@@ -67,7 +83,7 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - `POST /api/saved-searches` - Save a search
 - `POST /api/compare` - Compare products
 
-### Admin APIs
+### Admin APIs (Admin Auth Required)
 - `GET /api/admin/stats` - Dashboard statistics
 - `GET /api/admin/lookups` - Status enums, carriers, shipping methods
 - `GET /api/admin/users` - List all users (with search/filter)
@@ -82,38 +98,47 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - `POST /api/admin/shipments` - Create shipment
 - `PUT /api/admin/shipments/{id}` - Update shipment
 - `DELETE /api/admin/shipments/{id}` - Delete shipment
+- `GET /api/admin/audit-logs` - View audit logs (with pagination/filters)
+- `GET /api/admin/audit-logs/actions` - Get filter options for audit logs
 
 ## Tech Notes
 - Amazon PA-API: Currently using MOCK data. Add credentials to integrate real API.
 - Price history is generated mock data (30 days)
 - JWT tokens expire after 24 hours
+- Reset tokens expire after 1 hour
 - Order statuses: pending, confirmed, processing, shipped, delivered, cancelled, refunded
 - Shipment statuses: pending, picked_up, in_transit, out_for_delivery, delivered, failed, returned
 - Supported carriers: UPS, FedEx, USPS, DHL, Amazon Logistics
+- Audit logs track: CREATE, UPDATE, DELETE, PASSWORD_RESET_REQUEST, PASSWORD_RESET_COMPLETE
+
+## Credentials
+- **Admin Account**: admin@pricewise.com / admin123
+- **Database**: Uses MONGO_URL and DB_NAME from /app/backend/.env
 
 ## Prioritized Backlog
 
-### P0 (MVP Complete)
+### P0 (Complete)
 - [x] Core search functionality
 - [x] Product display with price history
 - [x] User authentication
 - [x] Wishlists and alerts
 - [x] Admin panel for users, orders, shipments
+- [x] Forgot password functionality
+- [x] Admin audit logging
 
 ### P1 (Next Phase)
-- [ ] Real Amazon PA-API integration
-- [ ] Email notifications for price alerts
-- [ ] Admin authentication/authorization
-- [ ] Order email confirmations
+- [ ] Real Amazon PA-API integration (waiting for user credentials)
+- [ ] Email service for password reset emails (currently token-only)
+- [ ] Price alert email notifications
 
 ### P2 (Future)
 - [ ] Price prediction using ML
 - [ ] Social sharing features
 - [ ] Browser extension
 - [ ] Analytics dashboard
+- [ ] Price history chart on product detail page
 
 ## Next Tasks
-1. Integrate real Amazon PA-API when credentials are provided
-2. Add email service for notifications
-3. Implement role-based access control for admin
-4. Add order confirmation emails
+1. Integrate real Amazon PA-API when user provides credentials
+2. Add email service (SendGrid/Resend) for password reset emails
+3. Implement price alert email notifications
