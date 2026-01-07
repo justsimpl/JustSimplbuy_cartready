@@ -854,6 +854,13 @@ async def get_products(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100)
 ):
+    # Try to get from cache first
+    cache_key = cache.generate_product_list_key(query, category, min_price, max_price, min_rating, sort_by, page, limit)
+    cached_result = await cache.get_product_list(cache_key)
+    if cached_result:
+        cached_result["cached"] = True
+        return cached_result
+    
     products = MOCK_PRODUCTS.copy()
     
     # Filter by search query
@@ -895,19 +902,35 @@ async def get_products(
     end = start + limit
     products = products[start:end]
     
-    return {
+    result = {
         "products": products,
         "total": total,
         "page": page,
         "limit": limit,
-        "total_pages": (total + limit - 1) // limit
+        "total_pages": (total + limit - 1) // limit,
+        "cached": False
     }
+    
+    # Cache the result
+    await cache.set_product_list(cache_key, result)
+    
+    return result
 
 @api_router.get("/products/{product_id}")
 async def get_product(product_id: str):
+    # Try cache first
+    cached_product = await cache.get_product(product_id)
+    if cached_product:
+        cached_product["cached"] = True
+        return cached_product
+    
     product = next((p for p in MOCK_PRODUCTS if p["id"] == product_id), None)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Cache the product
+    await cache.set_product(product_id, product)
+    product["cached"] = False
     return product
 
 @api_router.get("/categories")
