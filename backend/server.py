@@ -626,21 +626,10 @@ async def login(credentials: UserLogin):
             "created_at": user["created_at"]
         }
     }
-    
-    token = create_token(user["id"], user["email"])
-    
-    return {
-        "token": token,
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "created_at": user["created_at"]
-        }
-    }
 
-@api_router.get("/auth/me", response_model=UserResponse)
+@api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
+    current_user["role"] = current_user.get("role", "user")
     return current_user
 
 # ============ PRODUCTS ROUTES ============
