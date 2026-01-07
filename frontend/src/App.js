@@ -19,10 +19,16 @@ import AlertsPage from "./pages/Alerts";
 
 // Admin Pages
 import AdminLoginPage from "./pages/admin/AdminLogin";
+import AdminForgotPasswordPage from "./pages/admin/AdminForgotPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminShipments from "./pages/admin/AdminShipments";
+import AdminAuditLogs from "./pages/admin/AdminAuditLogs";
+
+// Auth Pages
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
 
 // Layout component for pages that need navbar
 const Layout = ({ children, showNavbar = true }) => {
