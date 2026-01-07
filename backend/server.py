@@ -616,6 +616,72 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
+# ============ AUDIT LOGGING HELPER ============
+
+async def log_audit(
+    admin_user: dict,
+    action: str,
+    resource_type: str,
+    resource_id: Optional[str] = None,
+    details: dict = {},
+    request: Optional[Request] = None
+):
+    """Log an admin action for audit trail"""
+    audit_entry = {
+        "id": str(uuid.uuid4()),
+        "admin_id": admin_user.get("id"),
+        "admin_name": admin_user.get("name"),
+        "admin_email": admin_user.get("email"),
+        "action": action,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "details": details,
+        "ip_address": request.client.host if request else None,
+        "user_agent": request.headers.get("user-agent") if request else None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.audit_logs.insert_one(audit_entry)
+    return audit_entry
+
+# ============ PASSWORD RESET HELPERS ============
+
+def generate_reset_token():
+    """Generate a secure password reset token"""
+    return secrets.token_urlsafe(32)
+
+async def create_password_reset_token(email: str):
+    """Create and store a password reset token"""
+    token = generate_reset_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_EXPIRATION_HOURS)
+    
+    reset_doc = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "token": token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Delete any existing tokens for this email
+    await db.password_resets.delete_many({"email": email})
+    await db.password_resets.insert_one(reset_doc)
+    
+    return token
+
+async def validate_reset_token(token: str):
+    """Validate a password reset token"""
+    reset_doc = await db.password_resets.find_one({"token": token, "used": False})
+    
+    if not reset_doc:
+        return None
+    
+    expires_at = datetime.fromisoformat(reset_doc["expires_at"].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        return None
+    
+    return reset_doc
+
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register", response_model=TokenResponse)
