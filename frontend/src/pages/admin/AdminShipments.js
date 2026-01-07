@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { 
   Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight, 
@@ -28,6 +29,7 @@ const statusColors = {
 };
 
 export default function AdminShipments() {
+  const { getAuthHeader } = useAuth();
   const [shipments, setShipments] = useState([]);
   const [orders, setOrders] = useState([]);
   const [lookups, setLookups] = useState(null);
@@ -66,7 +68,7 @@ export default function AdminShipments() {
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (carrierFilter && carrierFilter !== 'all') params.append('carrier', carrierFilter);
       
-      const response = await axios.get(`${API}/admin/shipments?${params}`);
+      const response = await axios.get(`${API}/admin/shipments?${params}`, { headers: getAuthHeader() });
       setShipments(response.data.shipments);
       setTotalPages(response.data.total_pages);
       setTotal(response.data.total);
@@ -79,7 +81,7 @@ export default function AdminShipments() {
 
   const fetchLookups = async () => {
     try {
-      const response = await axios.get(`${API}/admin/lookups`);
+      const response = await axios.get(`${API}/admin/lookups`, { headers: getAuthHeader() });
       setLookups(response.data);
     } catch (error) {
       console.error('Failed to load lookups');
@@ -88,7 +90,7 @@ export default function AdminShipments() {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${API}/admin/orders?limit=100`);
+      const response = await axios.get(`${API}/admin/orders?limit=100`, { headers: getAuthHeader() });
       setOrders(response.data.orders);
     } catch (error) {
       console.error('Failed to load orders');
@@ -104,7 +106,7 @@ export default function AdminShipments() {
     
     setFormLoading(true);
     try {
-      await axios.post(`${API}/admin/shipments`, formData);
+      await axios.post(`${API}/admin/shipments`, formData, { headers: getAuthHeader() });
       toast.success('Shipment created successfully');
       setCreateDialogOpen(false);
       resetForm();
@@ -122,7 +124,7 @@ export default function AdminShipments() {
     
     setFormLoading(true);
     try {
-      await axios.put(`${API}/admin/shipments/${selectedShipment.id}`, formData);
+      await axios.put(`${API}/admin/shipments/${selectedShipment.id}`, formData, { headers: getAuthHeader() });
       toast.success('Shipment updated successfully');
       setEditDialogOpen(false);
       fetchShipments();
@@ -135,7 +137,7 @@ export default function AdminShipments() {
 
   const handleDelete = async (shipmentId) => {
     try {
-      await axios.delete(`${API}/admin/shipments/${shipmentId}`);
+      await axios.delete(`${API}/admin/shipments/${shipmentId}`, { headers: getAuthHeader() });
       toast.success('Shipment deleted successfully');
       fetchShipments();
     } catch (error) {
@@ -170,7 +172,7 @@ export default function AdminShipments() {
 
   const openViewDialog = async (shipmentId) => {
     try {
-      const response = await axios.get(`${API}/admin/shipments/${shipmentId}`);
+      const response = await axios.get(`${API}/admin/shipments/${shipmentId}`, { headers: getAuthHeader() });
       setSelectedShipment(response.data);
       setViewDialogOpen(true);
     } catch (error) {
