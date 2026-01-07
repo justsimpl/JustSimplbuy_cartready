@@ -139,6 +139,43 @@ class AdminUserResponse(BaseModel):
     created_at: str
     orders_count: int = 0
 
+# ============ PASSWORD RESET MODELS ============
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+class PasswordResetResponse(BaseModel):
+    message: str
+    reset_token: Optional[str] = None  # Only returned in dev mode
+
+# ============ AUDIT LOG MODELS ============
+
+class AuditLogEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    admin_id: str
+    admin_name: str
+    admin_email: str
+    action: str  # CREATE, UPDATE, DELETE, LOGIN, PASSWORD_RESET
+    resource_type: str  # user, order, shipment, auth
+    resource_id: Optional[str] = None
+    details: dict = {}
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+AUDIT_ACTIONS = {
+    "CREATE": "Created",
+    "UPDATE": "Updated", 
+    "DELETE": "Deleted",
+    "LOGIN": "Logged in",
+    "PASSWORD_RESET": "Reset password",
+    "VIEW": "Viewed"
+}
+
 class OrderItem(BaseModel):
     product_id: str
     product_title: str
