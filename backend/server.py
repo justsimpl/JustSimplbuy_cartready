@@ -813,7 +813,8 @@ async def get_all_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
-    role: Optional[str] = Query(None)
+    role: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
 ):
     """Get all users with pagination and filtering"""
     query = {}
@@ -846,7 +847,7 @@ async def get_all_users(
     }
 
 @api_router.get("/admin/users/{user_id}")
-async def get_user_by_id(user_id: str):
+async def get_user_by_id(user_id: str, admin_user: dict = Depends(get_admin_user)):
     """Get a specific user by ID"""
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     if not user:
@@ -858,7 +859,7 @@ async def get_user_by_id(user_id: str):
     return user
 
 @api_router.post("/admin/users")
-async def create_user_admin(user_data: AdminUserCreate):
+async def create_user_admin(user_data: AdminUserCreate, admin_user: dict = Depends(get_admin_user)):
     """Create a new user (admin)"""
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
@@ -888,7 +889,7 @@ async def create_user_admin(user_data: AdminUserCreate):
     }
 
 @api_router.put("/admin/users/{user_id}")
-async def update_user_admin(user_id: str, user_data: AdminUserUpdate):
+async def update_user_admin(user_id: str, user_data: AdminUserUpdate, admin_user: dict = Depends(get_admin_user)):
     """Update a user (admin)"""
     user = await db.users.find_one({"id": user_id})
     if not user:
@@ -918,7 +919,7 @@ async def update_user_admin(user_id: str, user_data: AdminUserUpdate):
     return updated_user
 
 @api_router.delete("/admin/users/{user_id}")
-async def delete_user_admin(user_id: str):
+async def delete_user_admin(user_id: str, admin_user: dict = Depends(get_admin_user)):
     """Delete a user (admin)"""
     result = await db.users.delete_one({"id": user_id})
     if result.deleted_count == 0:
