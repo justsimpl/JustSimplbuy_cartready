@@ -150,7 +150,13 @@ export default function AdminLoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-700">
+          <div className="mt-6 pt-6 border-t border-slate-700 space-y-3">
+            <Link 
+              to="/admin/forgot-password" 
+              className="block text-center text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
+            >
+              Forgot your password?
+            </Link>
             <Link 
               to="/" 
               className="block text-center text-slate-400 hover:text-white text-sm transition-colors"
