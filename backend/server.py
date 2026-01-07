@@ -1556,6 +1556,61 @@ async def get_admin_lookups(admin_user: dict = Depends(get_admin_user)):
         "user_roles": ["user", "admin"]
     }
 
+# ============ ADMIN: AUDIT LOGS ============
+
+@api_router.get("/admin/audit-logs")
+async def get_audit_logs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    action: Optional[str] = Query(None),
+    resource_type: Optional[str] = Query(None),
+    admin_id: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Get audit logs with pagination and filtering"""
+    query = {}
+    
+    if action:
+        query["action"] = action
+    if resource_type:
+        query["resource_type"] = resource_type
+    if admin_id:
+        query["admin_id"] = admin_id
+    if start_date:
+        query["timestamp"] = {"$gte": start_date}
+    if end_date:
+        if "timestamp" in query:
+            query["timestamp"]["$lte"] = end_date
+        else:
+            query["timestamp"] = {"$lte": end_date}
+    
+    total = await db.audit_logs.count_documents(query)
+    skip = (page - 1) * limit
+    
+    logs_cursor = db.audit_logs.find(query, {"_id": 0}).skip(skip).limit(limit).sort("timestamp", -1)
+    logs = await logs_cursor.to_list(limit)
+    
+    return {
+        "logs": logs,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/admin/audit-logs/actions")
+async def get_audit_log_actions(admin_user: dict = Depends(get_admin_user)):
+    """Get unique action types for filtering"""
+    actions = await db.audit_logs.distinct("action")
+    resource_types = await db.audit_logs.distinct("resource_type")
+    
+    return {
+        "actions": actions,
+        "resource_types": resource_types
+    }
+
 # ============ COMPARISON ROUTES ============
 
 @api_router.post("/compare")
