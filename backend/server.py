@@ -114,6 +114,98 @@ class CreateSavedSearch(BaseModel):
     query: str
     filters: dict = {}
 
+# ============ ADMIN MODELS ============
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    role: str = "user"  # user, admin
+
+class AdminUserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    password: Optional[str] = None
+
+class AdminUserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    created_at: str
+    orders_count: int = 0
+
+class OrderItem(BaseModel):
+    product_id: str
+    product_title: str
+    quantity: int
+    price: float
+
+class OrderCreate(BaseModel):
+    user_id: str
+    items: List[OrderItem]
+    shipping_address: str
+    billing_address: str
+    payment_method: str = "credit_card"
+    notes: Optional[str] = None
+
+class OrderUpdate(BaseModel):
+    status: Optional[str] = None
+    shipping_address: Optional[str] = None
+    billing_address: Optional[str] = None
+    notes: Optional[str] = None
+
+class OrderResponse(BaseModel):
+    id: str
+    user_id: str
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    items: List[OrderItem]
+    total_amount: float
+    status: str
+    shipping_address: str
+    billing_address: str
+    payment_method: str
+    notes: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+class ShipmentCreate(BaseModel):
+    order_id: str
+    carrier: str
+    tracking_number: str
+    shipping_method: str = "standard"
+    estimated_delivery: Optional[str] = None
+    notes: Optional[str] = None
+
+class ShipmentUpdate(BaseModel):
+    status: Optional[str] = None
+    carrier: Optional[str] = None
+    tracking_number: Optional[str] = None
+    shipping_method: Optional[str] = None
+    estimated_delivery: Optional[str] = None
+    actual_delivery: Optional[str] = None
+    notes: Optional[str] = None
+
+class ShipmentResponse(BaseModel):
+    id: str
+    order_id: str
+    carrier: str
+    tracking_number: str
+    status: str
+    shipping_method: str
+    estimated_delivery: Optional[str] = None
+    actual_delivery: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"]
+SHIPMENT_STATUSES = ["pending", "picked_up", "in_transit", "out_for_delivery", "delivered", "failed", "returned"]
+CARRIERS = ["UPS", "FedEx", "USPS", "DHL", "Amazon Logistics"]
+SHIPPING_METHODS = ["standard", "express", "overnight", "economy"]
+
 # ============ MOCK DATA ============
 
 CATEGORIES = [
