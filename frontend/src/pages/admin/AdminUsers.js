@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../../components/ui/alert-dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight, 
   Loader2, User, Mail, Shield, Calendar, ShoppingCart 
@@ -19,6 +20,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { getAuthHeader } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
