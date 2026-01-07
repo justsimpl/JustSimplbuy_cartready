@@ -144,7 +144,7 @@ export default function AdminOrders() {
 
   const handleDelete = async (orderId) => {
     try {
-      await axios.delete(`${API}/admin/orders/${orderId}`);
+      await axios.delete(`${API}/admin/orders/${orderId}`, { headers: getAuthHeader() });
       toast.success('Order deleted successfully');
       fetchOrders();
     } catch (error) {
@@ -176,7 +176,7 @@ export default function AdminOrders() {
 
   const openViewDialog = async (orderId) => {
     try {
-      const response = await axios.get(`${API}/admin/orders/${orderId}`);
+      const response = await axios.get(`${API}/admin/orders/${orderId}`, { headers: getAuthHeader() });
       setSelectedOrder(response.data);
       setViewDialogOpen(true);
     } catch (error) {
