@@ -740,6 +740,19 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 # ============ PASSWORD RESET ROUTES ============
 
+@api_router.get("/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Verify a password reset token is valid"""
+    reset_doc = await validate_reset_token(token)
+    
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    return {
+        "valid": True,
+        "email": reset_doc["email"]
+    }
+
 @api_router.post("/auth/forgot-password")
 async def forgot_password(request_data: ForgotPasswordRequest):
     """Request a password reset token"""

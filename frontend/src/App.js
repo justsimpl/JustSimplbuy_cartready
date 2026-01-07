@@ -62,11 +62,17 @@ function App() {
           {/* Admin login - public */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
 
+          {/* Password Reset - public */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
+
           {/* Protected Admin pages */}
           <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
           <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
           <Route path="/admin/shipments" element={<AdminRoute><AdminShipments /></AdminRoute>} />
+          <Route path="/admin/audit-logs" element={<AdminRoute><AdminAuditLogs /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />
