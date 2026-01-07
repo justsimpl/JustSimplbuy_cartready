@@ -124,12 +124,12 @@ export default function SearchPage() {
       {/* Category Filter */}
       <div className="mb-6">
         <h4 className="font-semibold text-slate-700 mb-3">Category</h4>
-        <Select value={category} onValueChange={setCategory} data-testid="category-select">
+        <Select value={category || "all"} onValueChange={(val) => setCategory(val === "all" ? "" : val)} data-testid="category-select">
           <SelectTrigger className="w-full">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Categories</SelectItem>
+            <SelectItem value="all">All Categories</SelectItem>
             {categories.map(cat => (
               <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
             ))}
@@ -160,12 +160,12 @@ export default function SearchPage() {
       {/* Rating Filter */}
       <div className="mb-6">
         <h4 className="font-semibold text-slate-700 mb-3">Minimum Rating</h4>
-        <Select value={minRating} onValueChange={setMinRating} data-testid="rating-select">
+        <Select value={minRating || "any"} onValueChange={(val) => setMinRating(val === "any" ? "" : val)} data-testid="rating-select">
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Any Rating" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Any Rating</SelectItem>
+            <SelectItem value="any">Any Rating</SelectItem>
             <SelectItem value="4">4+ Stars</SelectItem>
             <SelectItem value="4.5">4.5+ Stars</SelectItem>
             <SelectItem value="4.7">4.7+ Stars</SelectItem>
