@@ -798,6 +798,470 @@ async def delete_saved_search(search_id: str, current_user: dict = Depends(get_c
         raise HTTPException(status_code=404, detail="Saved search not found")
     return {"message": "Saved search deleted"}
 
+# ============ ADMIN: USER MANAGEMENT ============
+
+@api_router.get("/admin/users")
+async def get_all_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    role: Optional[str] = Query(None)
+):
+    """Get all users with pagination and filtering"""
+    query = {}
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"email": {"$regex": search, "$options": "i"}}
+        ]
+    if role:
+        query["role"] = role
+    
+    total = await db.users.count_documents(query)
+    skip = (page - 1) * limit
+    
+    users_cursor = db.users.find(query, {"_id": 0, "password": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    users = await users_cursor.to_list(limit)
+    
+    # Add orders count for each user
+    for user in users:
+        orders_count = await db.orders.count_documents({"user_id": user.get("id")})
+        user["orders_count"] = orders_count
+        user["role"] = user.get("role", "user")
+    
+    return {
+        "users": users,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/admin/users/{user_id}")
+async def get_user_by_id(user_id: str):
+    """Get a specific user by ID"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    orders_count = await db.orders.count_documents({"user_id": user_id})
+    user["orders_count"] = orders_count
+    user["role"] = user.get("role", "user")
+    return user
+
+@api_router.post("/admin/users")
+async def create_user_admin(user_data: AdminUserCreate):
+    """Create a new user (admin)"""
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    
+    user_doc = {
+        "id": user_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "password": hash_password(user_data.password),
+        "role": user_data.role,
+        "created_at": created_at
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    return {
+        "id": user_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "role": user_data.role,
+        "created_at": created_at,
+        "orders_count": 0
+    }
+
+@api_router.put("/admin/users/{user_id}")
+async def update_user_admin(user_id: str, user_data: AdminUserUpdate):
+    """Update a user (admin)"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_data = {}
+    if user_data.email is not None:
+        # Check if email is taken by another user
+        existing = await db.users.find_one({"email": user_data.email, "id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        update_data["email"] = user_data.email
+    if user_data.name is not None:
+        update_data["name"] = user_data.name
+    if user_data.role is not None:
+        update_data["role"] = user_data.role
+    if user_data.password is not None:
+        update_data["password"] = hash_password(user_data.password)
+    
+    if update_data:
+        await db.users.update_one({"id": user_id}, {"$set": update_data})
+    
+    updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    orders_count = await db.orders.count_documents({"user_id": user_id})
+    updated_user["orders_count"] = orders_count
+    updated_user["role"] = updated_user.get("role", "user")
+    return updated_user
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user_admin(user_id: str):
+    """Delete a user (admin)"""
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Also delete related data
+    await db.wishlists.delete_many({"user_id": user_id})
+    await db.alerts.delete_many({"user_id": user_id})
+    await db.saved_searches.delete_many({"user_id": user_id})
+    
+    return {"message": "User deleted successfully"}
+
+# ============ ADMIN: ORDER MANAGEMENT ============
+
+@api_router.get("/admin/orders")
+async def get_all_orders(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    search: Optional[str] = Query(None)
+):
+    """Get all orders with pagination and filtering"""
+    query = {}
+    if status:
+        query["status"] = status
+    if user_id:
+        query["user_id"] = user_id
+    if search:
+        query["$or"] = [
+            {"id": {"$regex": search, "$options": "i"}},
+            {"user_email": {"$regex": search, "$options": "i"}}
+        ]
+    
+    total = await db.orders.count_documents(query)
+    skip = (page - 1) * limit
+    
+    orders_cursor = db.orders.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    orders = await orders_cursor.to_list(limit)
+    
+    # Enrich with user info
+    for order in orders:
+        user = await db.users.find_one({"id": order.get("user_id")}, {"_id": 0, "name": 1, "email": 1})
+        if user:
+            order["user_name"] = user.get("name")
+            order["user_email"] = user.get("email")
+    
+    return {
+        "orders": orders,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/admin/orders/{order_id}")
+async def get_order_by_id(order_id: str):
+    """Get a specific order by ID"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    user = await db.users.find_one({"id": order.get("user_id")}, {"_id": 0, "name": 1, "email": 1})
+    if user:
+        order["user_name"] = user.get("name")
+        order["user_email"] = user.get("email")
+    
+    # Get shipments for this order
+    shipments = await db.shipments.find({"order_id": order_id}, {"_id": 0}).to_list(100)
+    order["shipments"] = shipments
+    
+    return order
+
+@api_router.post("/admin/orders")
+async def create_order(order_data: OrderCreate):
+    """Create a new order"""
+    # Verify user exists
+    user = await db.users.find_one({"id": order_data.user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    order_id = str(uuid.uuid4())[:8].upper()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    total_amount = sum(item.price * item.quantity for item in order_data.items)
+    
+    order_doc = {
+        "id": order_id,
+        "user_id": order_data.user_id,
+        "items": [item.model_dump() for item in order_data.items],
+        "total_amount": round(total_amount, 2),
+        "status": "pending",
+        "shipping_address": order_data.shipping_address,
+        "billing_address": order_data.billing_address,
+        "payment_method": order_data.payment_method,
+        "notes": order_data.notes,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.orders.insert_one(order_doc)
+    
+    order_doc["user_name"] = user.get("name")
+    order_doc["user_email"] = user.get("email")
+    
+    return order_doc
+
+@api_router.put("/admin/orders/{order_id}")
+async def update_order(order_id: str, order_data: OrderUpdate):
+    """Update an order"""
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if order_data.status is not None:
+        if order_data.status not in ORDER_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {ORDER_STATUSES}")
+        update_data["status"] = order_data.status
+    if order_data.shipping_address is not None:
+        update_data["shipping_address"] = order_data.shipping_address
+    if order_data.billing_address is not None:
+        update_data["billing_address"] = order_data.billing_address
+    if order_data.notes is not None:
+        update_data["notes"] = order_data.notes
+    
+    await db.orders.update_one({"id": order_id}, {"$set": update_data})
+    
+    updated_order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    user = await db.users.find_one({"id": updated_order.get("user_id")}, {"_id": 0, "name": 1, "email": 1})
+    if user:
+        updated_order["user_name"] = user.get("name")
+        updated_order["user_email"] = user.get("email")
+    
+    return updated_order
+
+@api_router.delete("/admin/orders/{order_id}")
+async def delete_order(order_id: str):
+    """Delete an order"""
+    result = await db.orders.delete_one({"id": order_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Also delete related shipments
+    await db.shipments.delete_many({"order_id": order_id})
+    
+    return {"message": "Order deleted successfully"}
+
+# ============ ADMIN: SHIPMENT MANAGEMENT ============
+
+@api_router.get("/admin/shipments")
+async def get_all_shipments(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    carrier: Optional[str] = Query(None),
+    order_id: Optional[str] = Query(None)
+):
+    """Get all shipments with pagination and filtering"""
+    query = {}
+    if status:
+        query["status"] = status
+    if carrier:
+        query["carrier"] = carrier
+    if order_id:
+        query["order_id"] = order_id
+    
+    total = await db.shipments.count_documents(query)
+    skip = (page - 1) * limit
+    
+    shipments_cursor = db.shipments.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    shipments = await shipments_cursor.to_list(limit)
+    
+    # Enrich with order info
+    for shipment in shipments:
+        order = await db.orders.find_one({"id": shipment.get("order_id")}, {"_id": 0, "user_id": 1, "status": 1})
+        if order:
+            shipment["order_status"] = order.get("status")
+            user = await db.users.find_one({"id": order.get("user_id")}, {"_id": 0, "name": 1, "email": 1})
+            if user:
+                shipment["user_name"] = user.get("name")
+                shipment["user_email"] = user.get("email")
+    
+    return {
+        "shipments": shipments,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/admin/shipments/{shipment_id}")
+async def get_shipment_by_id(shipment_id: str):
+    """Get a specific shipment by ID"""
+    shipment = await db.shipments.find_one({"id": shipment_id}, {"_id": 0})
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    order = await db.orders.find_one({"id": shipment.get("order_id")}, {"_id": 0})
+    if order:
+        shipment["order"] = order
+    
+    return shipment
+
+@api_router.post("/admin/shipments")
+async def create_shipment(shipment_data: ShipmentCreate):
+    """Create a new shipment"""
+    # Verify order exists
+    order = await db.orders.find_one({"id": shipment_data.order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if shipment_data.carrier not in CARRIERS:
+        raise HTTPException(status_code=400, detail=f"Invalid carrier. Must be one of: {CARRIERS}")
+    
+    if shipment_data.shipping_method not in SHIPPING_METHODS:
+        raise HTTPException(status_code=400, detail=f"Invalid shipping method. Must be one of: {SHIPPING_METHODS}")
+    
+    shipment_id = str(uuid.uuid4())[:8].upper()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    shipment_doc = {
+        "id": shipment_id,
+        "order_id": shipment_data.order_id,
+        "carrier": shipment_data.carrier,
+        "tracking_number": shipment_data.tracking_number,
+        "status": "pending",
+        "shipping_method": shipment_data.shipping_method,
+        "estimated_delivery": shipment_data.estimated_delivery,
+        "actual_delivery": None,
+        "notes": shipment_data.notes,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.shipments.insert_one(shipment_doc)
+    
+    # Update order status to shipped if it's currently processing
+    if order.get("status") == "processing":
+        await db.orders.update_one(
+            {"id": shipment_data.order_id},
+            {"$set": {"status": "shipped", "updated_at": now}}
+        )
+    
+    return shipment_doc
+
+@api_router.put("/admin/shipments/{shipment_id}")
+async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate):
+    """Update a shipment"""
+    shipment = await db.shipments.find_one({"id": shipment_id})
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if shipment_data.status is not None:
+        if shipment_data.status not in SHIPMENT_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {SHIPMENT_STATUSES}")
+        update_data["status"] = shipment_data.status
+        
+        # Update order status based on shipment status
+        if shipment_data.status == "delivered":
+            await db.orders.update_one(
+                {"id": shipment.get("order_id")},
+                {"$set": {"status": "delivered", "updated_at": update_data["updated_at"]}}
+            )
+    
+    if shipment_data.carrier is not None:
+        if shipment_data.carrier not in CARRIERS:
+            raise HTTPException(status_code=400, detail=f"Invalid carrier. Must be one of: {CARRIERS}")
+        update_data["carrier"] = shipment_data.carrier
+    
+    if shipment_data.tracking_number is not None:
+        update_data["tracking_number"] = shipment_data.tracking_number
+    if shipment_data.shipping_method is not None:
+        if shipment_data.shipping_method not in SHIPPING_METHODS:
+            raise HTTPException(status_code=400, detail=f"Invalid shipping method. Must be one of: {SHIPPING_METHODS}")
+        update_data["shipping_method"] = shipment_data.shipping_method
+    if shipment_data.estimated_delivery is not None:
+        update_data["estimated_delivery"] = shipment_data.estimated_delivery
+    if shipment_data.actual_delivery is not None:
+        update_data["actual_delivery"] = shipment_data.actual_delivery
+    if shipment_data.notes is not None:
+        update_data["notes"] = shipment_data.notes
+    
+    await db.shipments.update_one({"id": shipment_id}, {"$set": update_data})
+    
+    return await db.shipments.find_one({"id": shipment_id}, {"_id": 0})
+
+@api_router.delete("/admin/shipments/{shipment_id}")
+async def delete_shipment(shipment_id: str):
+    """Delete a shipment"""
+    result = await db.shipments.delete_one({"id": shipment_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    return {"message": "Shipment deleted successfully"}
+
+# ============ ADMIN: STATS & LOOKUPS ============
+
+@api_router.get("/admin/stats")
+async def get_admin_stats():
+    """Get admin dashboard statistics"""
+    total_users = await db.users.count_documents({})
+    total_orders = await db.orders.count_documents({})
+    total_shipments = await db.shipments.count_documents({})
+    
+    # Orders by status
+    orders_by_status = {}
+    for status in ORDER_STATUSES:
+        count = await db.orders.count_documents({"status": status})
+        orders_by_status[status] = count
+    
+    # Shipments by status
+    shipments_by_status = {}
+    for status in SHIPMENT_STATUSES:
+        count = await db.shipments.count_documents({"status": status})
+        shipments_by_status[status] = count
+    
+    # Total revenue
+    pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]
+    revenue_result = await db.orders.aggregate(pipeline).to_list(1)
+    total_revenue = revenue_result[0]["total"] if revenue_result else 0
+    
+    # Recent orders
+    recent_orders = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    
+    return {
+        "total_users": total_users,
+        "total_orders": total_orders,
+        "total_shipments": total_shipments,
+        "total_revenue": round(total_revenue, 2),
+        "orders_by_status": orders_by_status,
+        "shipments_by_status": shipments_by_status,
+        "recent_orders": recent_orders
+    }
+
+@api_router.get("/admin/lookups")
+async def get_admin_lookups():
+    """Get lookup values for dropdowns"""
+    return {
+        "order_statuses": ORDER_STATUSES,
+        "shipment_statuses": SHIPMENT_STATUSES,
+        "carriers": CARRIERS,
+        "shipping_methods": SHIPPING_METHODS,
+        "user_roles": ["user", "admin"]
+    }
+
 # ============ COMPARISON ROUTES ============
 
 @api_router.post("/compare")
