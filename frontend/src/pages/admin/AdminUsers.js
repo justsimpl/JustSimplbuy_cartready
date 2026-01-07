@@ -54,7 +54,7 @@ export default function AdminUsers() {
       if (searchQuery) params.append('search', searchQuery);
       if (roleFilter && roleFilter !== 'all') params.append('role', roleFilter);
       
-      const response = await axios.get(`${API}/admin/users?${params}`);
+      const response = await axios.get(`${API}/admin/users?${params}`, { headers: getAuthHeader() });
       setUsers(response.data.users);
       setTotalPages(response.data.total_pages);
       setTotal(response.data.total);
@@ -74,7 +74,7 @@ export default function AdminUsers() {
     
     setFormLoading(true);
     try {
-      await axios.post(`${API}/admin/users`, formData);
+      await axios.post(`${API}/admin/users`, formData, { headers: getAuthHeader() });
       toast.success('User created successfully');
       setCreateDialogOpen(false);
       setFormData({ name: '', email: '', password: '', role: 'user' });
