@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingCart, Truck, 
-  ChevronLeft, ChevronRight, TrendingUp, LogOut, Menu
+  ChevronLeft, ChevronRight, TrendingUp, LogOut, Menu, FileText
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ const navItems = [
   { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
   { path: '/admin/shipments', icon: Truck, label: 'Shipments' },
+  { path: '/admin/audit-logs', icon: FileText, label: 'Audit Logs' },
 ];
 
 export const AdminLayout = ({ children }) => {
