@@ -1304,14 +1304,25 @@ async def update_order(order_id: str, order_data: OrderUpdate, request: Request,
     return updated_order
 
 @api_router.delete("/admin/orders/{order_id}")
-async def delete_order(order_id: str, admin_user: dict = Depends(get_admin_user)):
+async def delete_order(order_id: str, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Delete an order"""
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
     result = await db.orders.delete_one({"id": order_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Order not found")
     
     # Also delete related shipments
     await db.shipments.delete_many({"order_id": order_id})
+    
+    # Audit log
+    await log_audit(
+        admin_user, "DELETE", "order", order_id,
+        {"user_id": order.get("user_id"), "total_amount": order.get("total_amount")},
+        request
+    )
     
     return {"message": "Order deleted successfully"}
 
