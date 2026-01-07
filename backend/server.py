@@ -1013,10 +1013,12 @@ async def create_order(order_data: OrderCreate):
     
     await db.orders.insert_one(order_doc)
     
-    order_doc["user_name"] = user.get("name")
-    order_doc["user_email"] = user.get("email")
+    # Remove MongoDB _id field and add user info
+    response_doc = {k: v for k, v in order_doc.items() if k != "_id"}
+    response_doc["user_name"] = user.get("name")
+    response_doc["user_email"] = user.get("email")
     
-    return order_doc
+    return response_doc
 
 @api_router.put("/admin/orders/{order_id}")
 async def update_order(order_id: str, order_data: OrderUpdate):
