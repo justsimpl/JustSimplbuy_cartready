@@ -26,6 +26,7 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - **Frontend**: React + Tailwind CSS + Shadcn/UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
+- **Cache**: Redis (product caching, sessions, rate limiting)
 - **Auth**: JWT-based
 
 ## What's Been Implemented
@@ -58,6 +59,13 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - [x] Admin Audit Logging for all CRUD operations
 - [x] Audit Logs viewer page with filters (action, resource type)
 - [x] Password reset audit trail
+
+### Phase 4 - Redis Caching (Jan 7, 2025)
+- [x] Product data caching (5 min TTL for single products, 2 min for lists)
+- [x] Session storage in Redis (24 hour TTL)
+- [x] Rate limiting middleware (30/min anonymous, 100/min users, 200/min admins)
+- [x] Cache stats endpoint for admins
+- [x] Cache invalidation endpoint for admins
 
 ## API Endpoints
 
@@ -100,6 +108,13 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - `DELETE /api/admin/shipments/{id}` - Delete shipment
 - `GET /api/admin/audit-logs` - View audit logs (with pagination/filters)
 - `GET /api/admin/audit-logs/actions` - Get filter options for audit logs
+- `GET /api/admin/cache/stats` - Redis cache statistics
+- `POST /api/admin/cache/invalidate/products` - Clear product cache
+
+### Rate Limiting & Session APIs
+- `GET /api/rate-limit/status` - Get current rate limit status
+- `POST /api/auth/logout` - Logout and clear sessions
+- `GET /api/auth/sessions` - Get active session count
 
 ## Tech Notes
 - Amazon PA-API: Currently using MOCK data. Add credentials to integrate real API.
@@ -110,6 +125,8 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - Shipment statuses: pending, picked_up, in_transit, out_for_delivery, delivered, failed, returned
 - Supported carriers: UPS, FedEx, USPS, DHL, Amazon Logistics
 - Audit logs track: CREATE, UPDATE, DELETE, PASSWORD_RESET_REQUEST, PASSWORD_RESET_COMPLETE
+- Redis caching: Products cached for 5 min, lists for 2 min, sessions for 24 hours
+- Rate limits: Anonymous 30/min, Authenticated 100/min, Admin 200/min
 
 ## Credentials
 - **Admin Account**: admin@pricewise.com / admin123
