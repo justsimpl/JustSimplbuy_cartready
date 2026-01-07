@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { Toaster } from "./components/ui/sonner";
 import { Navbar } from "./components/Navbar";
+import { AdminRoute } from "./components/AdminRoute";
 
 // Pages
 import HomePage from "./pages/Home";
@@ -17,6 +18,7 @@ import WishlistPage from "./pages/Wishlist";
 import AlertsPage from "./pages/Alerts";
 
 // Admin Pages
+import AdminLoginPage from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrders from "./pages/admin/AdminOrders";
@@ -51,11 +53,14 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Admin pages */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/shipments" element={<AdminShipments />} />
+          {/* Admin login - public */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+
+          {/* Protected Admin pages */}
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+          <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+          <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
+          <Route path="/admin/shipments" element={<AdminRoute><AdminShipments /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />
