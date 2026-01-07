@@ -1384,7 +1384,7 @@ async def get_shipment_by_id(shipment_id: str, admin_user: dict = Depends(get_ad
     return shipment
 
 @api_router.post("/admin/shipments")
-async def create_shipment(shipment_data: ShipmentCreate, admin_user: dict = Depends(get_admin_user)):
+async def create_shipment(shipment_data: ShipmentCreate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Create a new shipment"""
     # Verify order exists
     order = await db.orders.find_one({"id": shipment_data.order_id})
@@ -1423,22 +1423,31 @@ async def create_shipment(shipment_data: ShipmentCreate, admin_user: dict = Depe
             {"$set": {"status": "shipped", "updated_at": now}}
         )
     
+    # Audit log
+    await log_audit(
+        admin_user, "CREATE", "shipment", shipment_id,
+        {"order_id": shipment_data.order_id, "carrier": shipment_data.carrier, "tracking_number": shipment_data.tracking_number},
+        request
+    )
+    
     # Remove MongoDB _id field before returning
     response_doc = {k: v for k, v in shipment_doc.items() if k != "_id"}
     return response_doc
 
 @api_router.put("/admin/shipments/{shipment_id}")
-async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate, admin_user: dict = Depends(get_admin_user)):
+async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Update a shipment"""
     shipment = await db.shipments.find_one({"id": shipment_id})
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
     
     update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    changes = {}
     
     if shipment_data.status is not None:
         if shipment_data.status not in SHIPMENT_STATUSES:
             raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {SHIPMENT_STATUSES}")
+        changes["status"] = {"from": shipment.get("status"), "to": shipment_data.status}
         update_data["status"] = shipment_data.status
         
         # Update order status based on shipment status
@@ -1451,9 +1460,11 @@ async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate, admin
     if shipment_data.carrier is not None:
         if shipment_data.carrier not in CARRIERS:
             raise HTTPException(status_code=400, detail=f"Invalid carrier. Must be one of: {CARRIERS}")
+        changes["carrier"] = {"from": shipment.get("carrier"), "to": shipment_data.carrier}
         update_data["carrier"] = shipment_data.carrier
     
     if shipment_data.tracking_number is not None:
+        changes["tracking_number"] = "updated"
         update_data["tracking_number"] = shipment_data.tracking_number
     if shipment_data.shipping_method is not None:
         if shipment_data.shipping_method not in SHIPPING_METHODS:
@@ -1468,14 +1479,28 @@ async def update_shipment(shipment_id: str, shipment_data: ShipmentUpdate, admin
     
     await db.shipments.update_one({"id": shipment_id}, {"$set": update_data})
     
+    # Audit log
+    await log_audit(admin_user, "UPDATE", "shipment", shipment_id, changes, request)
+    
     return await db.shipments.find_one({"id": shipment_id}, {"_id": 0})
 
 @api_router.delete("/admin/shipments/{shipment_id}")
-async def delete_shipment(shipment_id: str, admin_user: dict = Depends(get_admin_user)):
+async def delete_shipment(shipment_id: str, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Delete a shipment"""
+    shipment = await db.shipments.find_one({"id": shipment_id})
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
     result = await db.shipments.delete_one({"id": shipment_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    # Audit log
+    await log_audit(
+        admin_user, "DELETE", "shipment", shipment_id,
+        {"order_id": shipment.get("order_id"), "carrier": shipment.get("carrier")},
+        request
+    )
     
     return {"message": "Shipment deleted successfully"}
 
