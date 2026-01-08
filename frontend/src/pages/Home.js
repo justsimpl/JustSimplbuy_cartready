@@ -23,6 +23,7 @@ const CATEGORY_ICONS = {
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
