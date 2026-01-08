@@ -64,7 +64,7 @@ export default function HomePage() {
             <span className="gradient-text">Buy Now Pay Later</span> any item on Amazon
           </h1>
           <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto">
-            Track prices, compare products, and never miss a deal. Your smart shopping companion powered by Amazon PA-API.
+            We offer several financing options including leasing payments through Acima.
           </p>
 
           {/* Search Bar */}
