@@ -65,7 +65,7 @@ export default function HomePage() {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <span className="font-bold text-xl text-slate-900" style={{ fontFamily: 'var(--font-heading)' }}>
-              PriceWise
+              JustSimplBuying
             </span>
           </Link>
           
@@ -223,7 +223,7 @@ export default function HomePage() {
       <section className="py-20 px-4 bg-white" data-testid="features-section">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl font-bold text-center text-slate-900 mb-12" style={{ fontFamily: 'var(--font-heading)' }}>
-            Why Choose PriceWise?
+            Why Choose JustSimplBuying?
           </h2>
           
           <div className="grid md:grid-cols-3 gap-8">
@@ -273,7 +273,7 @@ export default function HomePage() {
             Start Saving Money Today
           </h2>
           <p className="text-lg text-indigo-100 mb-8">
-            Join thousands of smart shoppers who save money with PriceWise.
+            Join thousands of smart shoppers who save money with JustSimplBuying.
           </p>
           <Button
             onClick={() => navigate('/register')}
@@ -294,11 +294,11 @@ export default function HomePage() {
                 <TrendingUp className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-xl text-white" style={{ fontFamily: 'var(--font-heading)' }}>
-                PriceWise
+                JustSimplBuying
               </span>
             </div>
             <p className="text-sm">
-              © 2024 PriceWise. Powered by Amazon PA-API. All product data is mocked for demo purposes.
+              © 2024 JustSimplBuying. Powered by Amazon PA-API. All product data is mocked for demo purposes.
             </p>
           </div>
         </div>

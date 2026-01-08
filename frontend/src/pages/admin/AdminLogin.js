@@ -71,7 +71,7 @@ export default function AdminLoginPage() {
             </div>
             <div>
               <span className="font-bold text-2xl text-white" style={{ fontFamily: 'var(--font-heading)' }}>
-                PriceWise
+                JustSimplBuying
               </span>
               <div className="flex items-center gap-1 text-indigo-400 text-sm">
                 <Shield className="w-3 h-3" />

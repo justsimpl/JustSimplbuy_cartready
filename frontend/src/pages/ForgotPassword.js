@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
             className="font-bold text-2xl text-slate-900"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            PriceWise
+            JustSimplBuying
           </span>
         </div>
 

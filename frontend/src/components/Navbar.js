@@ -40,7 +40,7 @@ export const Navbar = () => {
               <TrendingUp className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-xl text-slate-900" style={{ fontFamily: 'var(--font-heading)' }}>
-              PriceWise
+              JustSimplBuying
             </span>
           </Link>
 

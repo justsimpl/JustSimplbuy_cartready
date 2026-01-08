@@ -56,7 +56,7 @@ export const AdminLayout = ({ children }) => {
             </div>
             {!collapsed && (
               <span className="font-bold text-lg" style={{ fontFamily: 'var(--font-heading)' }}>
-                PriceWise
+                JustSimplBuying
               </span>
             )}
           </Link>
