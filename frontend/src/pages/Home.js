@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Search, TrendingUp, Star, Shield, Bell, ArrowRight, Laptop, Book, Shirt, Home as HomeIcon, Dumbbell, Sparkles, Gamepad2, Car, Heart, Flower } from 'lucide-react';
+import { Search, TrendingUp, Star, Shield, Bell, ArrowRight, Laptop, Book, Shirt, Home as HomeIcon, Dumbbell, Sparkles, Gamepad2, Car, Heart, Flower, User } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ProductCard } from '../components/ProductCard';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
