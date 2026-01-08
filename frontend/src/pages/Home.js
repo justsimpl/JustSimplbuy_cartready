@@ -61,7 +61,7 @@ export default function HomePage() {
             className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 mb-6"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Find the <span className="gradient-text">Best Deals</span> on Amazon
+            <span className="gradient-text">Buy Now Pay Later</span> any item on Amazon
           </h1>
           <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto">
             Track prices, compare products, and never miss a deal. Your smart shopping companion powered by Amazon PA-API.
