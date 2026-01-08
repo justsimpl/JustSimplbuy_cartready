@@ -56,8 +56,57 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen" data-testid="home-page">
+      {/* Top Navigation Bar */}
+      <nav className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-xl text-slate-900" style={{ fontFamily: 'var(--font-heading)' }}>
+              PriceWise
+            </span>
+          </Link>
+          
+          {/* Login/Account Button */}
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="ghost" className="text-slate-700 hover:text-slate-900" data-testid="dashboard-btn">
+                    <User className="w-4 h-4 mr-2" />
+                    {user.name}
+                  </Button>
+                </Link>
+                <Button 
+                  variant="outline" 
+                  onClick={logout}
+                  className="border-slate-300 text-slate-700 hover:bg-slate-100"
+                  data-testid="logout-btn"
+                >
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6"
+                    data-testid="login-btn"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    Login to Account
+                  </Button>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="hero-gradient py-20 px-4" data-testid="hero-section">
+      <section className="hero-gradient py-20 pt-28 px-4" data-testid="hero-section">
         <div className="max-w-4xl mx-auto text-center">
           <h1 
             className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 mb-6"
