@@ -265,13 +265,15 @@ export default function ProductDetailPage() {
                     return;
                   }
                   try {
-                    await axios.post(`${API}/cart/add`, { product_id: id, quantity: 1 }, { headers: getAuthHeader() });
+                    const headers = getAuthHeader();
+                    await axios.post(`${API}/cart/add`, { product_id: id, quantity: 1 }, { headers });
                     toast.success('Added to cart!');
                   } catch (error) {
-                    toast.error('Failed to add to cart');
+                    console.error('Add to cart error:', error);
+                    toast.error(error.response?.data?.detail || 'Failed to add to cart');
                   }
                 }}
-                disabled={!product.in_stock}
+                disabled={!product?.in_stock}
                 data-testid="add-to-cart-btn"
               >
                 <ShoppingCart className="w-5 h-5 mr-2" />
