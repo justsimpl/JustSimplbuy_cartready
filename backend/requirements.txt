@@ -26,3 +26,5 @@ jq>=1.6.0
 typer>=0.9.0
 aioredis==2.0.1
 redis==7.1.0
+emergentintegrations==0.1.0
+stripe==14.1.0
