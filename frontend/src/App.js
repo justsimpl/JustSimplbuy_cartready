@@ -21,6 +21,7 @@ import AlertsPage from "./pages/Alerts";
 import AdminLoginPage from "./pages/admin/AdminLogin";
 import AdminForgotPasswordPage from "./pages/admin/AdminForgotPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminProducts from "./pages/admin/AdminProducts";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminShipments from "./pages/admin/AdminShipments";
