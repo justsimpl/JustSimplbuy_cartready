@@ -21,14 +21,6 @@ export const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
 
-  useEffect(() => {
-    if (user) {
-      fetchCartCount();
-    } else {
-      setCartCount(0);
-    }
-  }, [user]);
-
   const fetchCartCount = async () => {
     try {
       const headers = getAuthHeader();
@@ -40,6 +32,15 @@ export const Navbar = () => {
       setCartCount(0);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      fetchCartCount();
+    } else {
+      setCartCount(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleSearch = (e) => {
     e.preventDefault();
