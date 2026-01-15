@@ -175,9 +175,12 @@ export default function AdminOrders() {
       : order.billing_address || '';
     
     setFormData({
+      user_id: order.user_id || '',
+      items: order.items || [{ product_id: '', product_title: '', quantity: 1, price: 0 }],
       status: order.status,
       shipping_address: shippingAddr,
       billing_address: billingAddr,
+      payment_method: order.payment_method || 'credit_card',
       notes: order.notes || ''
     });
     setEditDialogOpen(true);
