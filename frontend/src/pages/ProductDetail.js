@@ -257,13 +257,25 @@ export default function ProductDetailPage() {
             {/* Actions */}
             <div className="flex flex-wrap gap-3 mb-8">
               <Button
-                className="amazon-btn flex-1 sm:flex-none"
-                onClick={() => window.open(product.affiliate_url, '_blank')}
-                data-testid="buy-amazon-btn"
+                className="bg-indigo-600 hover:bg-indigo-700 flex-1 sm:flex-none h-12"
+                onClick={async () => {
+                  if (!user) {
+                    toast.error('Please sign in to add to cart');
+                    navigate('/login');
+                    return;
+                  }
+                  try {
+                    await axios.post(`${API}/cart/add`, { product_id: id, quantity: 1 }, { headers: getAuthHeader() });
+                    toast.success('Added to cart!');
+                  } catch (error) {
+                    toast.error('Failed to add to cart');
+                  }
+                }}
+                disabled={!product.in_stock}
+                data-testid="add-to-cart-btn"
               >
-                <ShoppingCart className="w-5 h-5" />
-                Buy on Amazon
-                <ExternalLink className="w-4 h-4" />
+                <ShoppingCart className="w-5 h-5 mr-2" />
+                Add to Cart
               </Button>
 
               <Button
