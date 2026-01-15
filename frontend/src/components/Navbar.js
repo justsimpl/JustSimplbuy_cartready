@@ -89,6 +89,14 @@ export const Navbar = () => {
 
             {user ? (
               <>
+                <Link to="/cart" className="p-2 rounded-lg hover:bg-slate-100 transition-colors relative" data-testid="nav-cart">
+                  <ShoppingCart className="w-5 h-5 text-slate-600" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-600 text-white text-xs rounded-full flex items-center justify-center">
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </span>
+                  )}
+                </Link>
                 <Link to="/wishlist" className="p-2 rounded-lg hover:bg-slate-100 transition-colors" data-testid="nav-wishlist">
                   <Heart className="w-5 h-5 text-slate-600" />
                 </Link>
@@ -108,6 +116,10 @@ export const Navbar = () => {
                     <DropdownMenuItem onClick={() => navigate('/dashboard')} data-testid="nav-dashboard">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
                       Dashboard
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/cart')} data-testid="nav-cart-menu">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Cart {cartCount > 0 && `(${cartCount})`}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/wishlist')} data-testid="nav-wishlist-menu">
                       <Heart className="w-4 h-4 mr-2" />
