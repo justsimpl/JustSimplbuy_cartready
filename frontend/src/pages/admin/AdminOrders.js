@@ -165,10 +165,19 @@ export default function AdminOrders() {
 
   const openEditDialog = (order) => {
     setSelectedOrder(order);
+    // Handle shipping_address as object or string
+    const shippingAddr = typeof order.shipping_address === 'object' && order.shipping_address
+      ? `${order.shipping_address.full_name}\n${order.shipping_address.address_line1}${order.shipping_address.address_line2 ? '\n' + order.shipping_address.address_line2 : ''}\n${order.shipping_address.city}, ${order.shipping_address.state} ${order.shipping_address.zip_code}\n${order.shipping_address.country}`
+      : order.shipping_address || '';
+    
+    const billingAddr = typeof order.billing_address === 'object' && order.billing_address
+      ? `${order.billing_address.full_name}\n${order.billing_address.address_line1}\n${order.billing_address.city}, ${order.billing_address.state} ${order.billing_address.zip_code}`
+      : order.billing_address || '';
+    
     setFormData({
       status: order.status,
-      shipping_address: order.shipping_address,
-      billing_address: order.billing_address,
+      shipping_address: shippingAddr,
+      billing_address: billingAddr,
       notes: order.notes || ''
     });
     setEditDialogOpen(true);
