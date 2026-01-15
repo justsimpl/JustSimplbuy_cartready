@@ -915,53 +915,66 @@ async def get_products(
         cached_result["cached"] = True
         return cached_result
     
-    products = MOCK_PRODUCTS.copy()
+    # Build MongoDB query
+    db_query = {}
     
     # Filter by search query
     if query:
-        query_lower = query.lower()
-        products = [p for p in products if 
-                    query_lower in p["title"].lower() or 
-                    query_lower in p["description"].lower() or
-                    query_lower in p["brand"].lower() or
-                    query_lower in p["category"].lower()]
+        db_query["$or"] = [
+            {"title": {"$regex": query, "$options": "i"}},
+            {"description": {"$regex": query, "$options": "i"}},
+            {"brand": {"$regex": query, "$options": "i"}},
+            {"category": {"$regex": query, "$options": "i"}}
+        ]
     
     # Filter by category
     if category:
-        products = [p for p in products if p["category"] == category]
+        db_query["category"] = category
     
     # Filter by price range
-    if min_price is not None:
-        products = [p for p in products if p["price"] >= min_price]
-    if max_price is not None:
-        products = [p for p in products if p["price"] <= max_price]
+    if min_price is not None or max_price is not None:
+        db_query["price"] = {}
+        if min_price is not None:
+            db_query["price"]["$gte"] = min_price
+        if max_price is not None:
+            db_query["price"]["$lte"] = max_price
     
     # Filter by rating
     if min_rating is not None:
-        products = [p for p in products if p["rating"] >= min_rating]
+        db_query["rating"] = {"$gte": min_rating}
     
-    # Sort
+    # Determine sort order
+    sort_field = "created_at"
+    sort_order = -1
     if sort_by == "price_low":
-        products.sort(key=lambda x: x["price"])
+        sort_field = "price"
+        sort_order = 1
     elif sort_by == "price_high":
-        products.sort(key=lambda x: x["price"], reverse=True)
+        sort_field = "price"
+        sort_order = -1
     elif sort_by == "rating":
-        products.sort(key=lambda x: x["rating"], reverse=True)
+        sort_field = "rating"
+        sort_order = -1
     elif sort_by == "reviews":
-        products.sort(key=lambda x: x["reviews_count"], reverse=True)
+        sort_field = "reviews_count"
+        sort_order = -1
+    
+    # Get total count
+    total = await db.products.count_documents(db_query)
     
     # Pagination
-    total = len(products)
-    start = (page - 1) * limit
-    end = start + limit
-    products = products[start:end]
+    skip = (page - 1) * limit
+    
+    # Fetch products
+    products_cursor = db.products.find(db_query, {"_id": 0}).sort(sort_field, sort_order).skip(skip).limit(limit)
+    products = await products_cursor.to_list(limit)
     
     result = {
         "products": products,
         "total": total,
         "page": page,
         "limit": limit,
-        "total_pages": (total + limit - 1) // limit,
+        "total_pages": (total + limit - 1) // limit if total > 0 else 0,
         "cached": False
     }
     
@@ -978,7 +991,7 @@ async def get_product(product_id: str):
         cached_product["cached"] = True
         return cached_product
     
-    product = next((p for p in MOCK_PRODUCTS if p["id"] == product_id), None)
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -989,7 +1002,17 @@ async def get_product(product_id: str):
 
 @api_router.get("/categories")
 async def get_categories():
-    return CATEGORIES
+    # Get unique categories from products
+    categories = await db.products.distinct("category")
+    # Return in a structured format
+    category_list = []
+    for cat in categories:
+        category_list.append({
+            "id": cat,
+            "name": cat.replace("_", " ").title(),
+            "icon": cat.capitalize()
+        })
+    return category_list if category_list else CATEGORIES
 
 # ============ WISHLIST ROUTES ============
 
