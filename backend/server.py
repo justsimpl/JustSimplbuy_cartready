@@ -101,6 +101,21 @@ class TokenResponse(BaseModel):
     session_id: Optional[str] = None
     user: UserResponse
 
+# ============ CART & CHECKOUT MODELS ============
+
+class CartItem(BaseModel):
+    product_id: str
+    quantity: int = 1
+
+class CartItemUpdate(BaseModel):
+    quantity: int
+
+class CheckoutRequest(BaseModel):
+    origin_url: str
+    shipping_address: Optional[ShippingAddress] = None
+    use_saved_address: bool = True
+    payment_method: str = "card"  # card, affirm, klarna, afterpay
+
 class Product(BaseModel):
     id: str
     asin: str
