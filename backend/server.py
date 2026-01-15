@@ -2046,10 +2046,22 @@ logger = logging.getLogger(__name__)
 
 # ============ STARTUP/SHUTDOWN EVENTS ============
 
+async def seed_products():
+    """Seed initial products if database is empty"""
+    count = await db.products.count_documents({})
+    if count == 0:
+        logger.info("Seeding initial products...")
+        now = datetime.now(timezone.utc).isoformat()
+        for product in MOCK_PRODUCTS:
+            product_doc = {**product, "created_at": now, "updated_at": now}
+            await db.products.insert_one(product_doc)
+        logger.info(f"Seeded {len(MOCK_PRODUCTS)} products")
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialize Redis cache on startup"""
+    """Initialize Redis cache and seed data on startup"""
     await cache.connect()
+    await seed_products()
     logger.info("Application started with Redis caching")
 
 @app.on_event("shutdown")
