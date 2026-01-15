@@ -1786,6 +1786,8 @@ async def get_admin_stats(admin_user: dict = Depends(get_admin_user)):
     total_users = await db.users.count_documents({})
     total_orders = await db.orders.count_documents({})
     total_shipments = await db.shipments.count_documents({})
+    total_products = await db.products.count_documents({})
+    products_in_stock = await db.products.count_documents({"in_stock": True})
     
     # Orders by status
     orders_by_status = {}
