@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
@@ -9,13 +9,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Search, User, Heart, Bell, Menu, X, TrendingUp, LogOut, LayoutDashboard } from 'lucide-react';
+import { Search, User, Heart, Bell, Menu, X, TrendingUp, LogOut, LayoutDashboard, ShoppingCart } from 'lucide-react';
+import axios from 'axios';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getAuthHeader } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      fetchCartCount();
+    }
+  }, [user]);
+
+  const fetchCartCount = async () => {
+    try {
+      const response = await axios.get(`${API}/cart`, { headers: getAuthHeader() });
+      setCartCount(response.data.item_count || 0);
+    } catch (error) {
+      console.error('Error fetching cart:', error);
+    }
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
