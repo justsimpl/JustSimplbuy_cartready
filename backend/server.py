@@ -830,6 +830,106 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     current_user["role"] = current_user.get("role", "user")
     return current_user
 
+# ============ USER PROFILE ROUTES ============
+
+@api_router.get("/user/profile")
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get complete user profile with shipping and payment info"""
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "phone": user.get("phone", ""),
+        "role": user.get("role", "user"),
+        "shipping_address": user.get("shipping_address"),
+        "payment_info": user.get("payment_info"),
+        "created_at": user["created_at"]
+    }
+
+@api_router.put("/user/profile")
+async def update_user_profile(profile_data: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update user profile (name, phone, shipping address, payment info)"""
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if profile_data.name is not None:
+        update_data["name"] = profile_data.name
+    if profile_data.phone is not None:
+        update_data["phone"] = profile_data.phone
+    if profile_data.shipping_address is not None:
+        update_data["shipping_address"] = profile_data.shipping_address.model_dump()
+    if profile_data.payment_info is not None:
+        # Only store last 4 digits and card info, not full card number
+        update_data["payment_info"] = profile_data.payment_info.model_dump()
+    
+    await db.users.update_one({"id": current_user["id"]}, {"$set": update_data})
+    
+    return await get_user_profile(current_user)
+
+@api_router.get("/user/orders")
+async def get_user_orders(
+    current_user: dict = Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    status: Optional[str] = Query(None)
+):
+    """Get order history for the logged-in user"""
+    query = {"user_id": current_user["id"]}
+    if status:
+        query["status"] = status
+    
+    total = await db.orders.count_documents(query)
+    skip = (page - 1) * limit
+    
+    orders_cursor = db.orders.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    orders = await orders_cursor.to_list(limit)
+    
+    # Enrich orders with product details
+    for order in orders:
+        enriched_items = []
+        for item in order.get("items", []):
+            product = await db.products.find_one({"id": item.get("product_id")}, {"_id": 0})
+            enriched_items.append({
+                **item,
+                "product": product
+            })
+        order["items"] = enriched_items
+        
+        # Get shipment info if exists
+        shipment = await db.shipments.find_one({"order_id": order["id"]}, {"_id": 0})
+        order["shipment"] = shipment
+    
+    return {
+        "orders": orders,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit if total > 0 else 0
+    }
+
+@api_router.get("/user/orders/{order_id}")
+async def get_user_order_detail(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed order information"""
+    order = await db.orders.find_one({"id": order_id, "user_id": current_user["id"]}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Enrich with product details
+    enriched_items = []
+    for item in order.get("items", []):
+        product = await db.products.find_one({"id": item.get("product_id")}, {"_id": 0})
+        enriched_items.append({**item, "product": product})
+    order["items"] = enriched_items
+    
+    # Get shipment info
+    shipment = await db.shipments.find_one({"order_id": order_id}, {"_id": 0})
+    order["shipment"] = shipment
+    
+    return order
+
 # ============ PASSWORD RESET ROUTES ============
 
 @api_router.get("/auth/verify-reset-token/{token}")
