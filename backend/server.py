@@ -1611,6 +1611,173 @@ async def delete_shipment(shipment_id: str, request: Request, admin_user: dict =
     
     return {"message": "Shipment deleted successfully"}
 
+# ============ ADMIN: PRODUCT MANAGEMENT ============
+
+@api_router.get("/admin/products")
+async def get_all_products_admin(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    in_stock: Optional[bool] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Get all products with pagination and filtering (admin)"""
+    query = {}
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"brand": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    if category:
+        query["category"] = category
+    if in_stock is not None:
+        query["in_stock"] = in_stock
+    
+    total = await db.products.count_documents(query)
+    skip = (page - 1) * limit
+    
+    products_cursor = db.products.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    products = await products_cursor.to_list(limit)
+    
+    return {
+        "products": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit if total > 0 else 0
+    }
+
+@api_router.get("/admin/products/{product_id}")
+async def get_product_admin(product_id: str, admin_user: dict = Depends(get_admin_user)):
+    """Get a specific product by ID (admin)"""
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+@api_router.post("/admin/products")
+async def create_product(product_data: ProductCreate, request: Request, admin_user: dict = Depends(get_admin_user)):
+    """Create a new product (admin)"""
+    product_id = f"prod-{str(uuid.uuid4())[:8]}"
+    now = datetime.now(timezone.utc).isoformat()
+    
+    product_doc = {
+        "id": product_id,
+        "title": product_data.title,
+        "description": product_data.description,
+        "category": product_data.category,
+        "subcategory": product_data.subcategory or "",
+        "price": product_data.price,
+        "original_price": product_data.original_price or product_data.price,
+        "rating": product_data.rating,
+        "reviews_count": product_data.reviews_count,
+        "image_url": product_data.image_url or "",
+        "brand": product_data.brand or "",
+        "features": product_data.features or [],
+        "in_stock": product_data.in_stock,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.products.insert_one(product_doc)
+    
+    # Invalidate product cache
+    await cache.invalidate_product(product_id)
+    
+    # Audit log
+    await log_audit(
+        admin_user, "CREATE", "product", product_id,
+        {"title": product_data.title, "category": product_data.category, "price": product_data.price},
+        request
+    )
+    
+    return {k: v for k, v in product_doc.items() if k != "_id"}
+
+@api_router.put("/admin/products/{product_id}")
+async def update_product(product_id: str, product_data: ProductUpdate, request: Request, admin_user: dict = Depends(get_admin_user)):
+    """Update a product (admin)"""
+    product = await db.products.find_one({"id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    changes = {}
+    
+    if product_data.title is not None:
+        update_data["title"] = product_data.title
+        changes["title"] = {"from": product.get("title"), "to": product_data.title}
+    if product_data.description is not None:
+        update_data["description"] = product_data.description
+        changes["description"] = "updated"
+    if product_data.category is not None:
+        update_data["category"] = product_data.category
+        changes["category"] = {"from": product.get("category"), "to": product_data.category}
+    if product_data.subcategory is not None:
+        update_data["subcategory"] = product_data.subcategory
+    if product_data.price is not None:
+        update_data["price"] = product_data.price
+        changes["price"] = {"from": product.get("price"), "to": product_data.price}
+    if product_data.original_price is not None:
+        update_data["original_price"] = product_data.original_price
+    if product_data.rating is not None:
+        update_data["rating"] = product_data.rating
+    if product_data.reviews_count is not None:
+        update_data["reviews_count"] = product_data.reviews_count
+    if product_data.image_url is not None:
+        update_data["image_url"] = product_data.image_url
+    if product_data.brand is not None:
+        update_data["brand"] = product_data.brand
+    if product_data.features is not None:
+        update_data["features"] = product_data.features
+    if product_data.in_stock is not None:
+        update_data["in_stock"] = product_data.in_stock
+        changes["in_stock"] = {"from": product.get("in_stock"), "to": product_data.in_stock}
+    
+    await db.products.update_one({"id": product_id}, {"$set": update_data})
+    
+    # Invalidate product cache
+    await cache.invalidate_product(product_id)
+    
+    # Audit log
+    await log_audit(admin_user, "UPDATE", "product", product_id, changes, request)
+    
+    return await db.products.find_one({"id": product_id}, {"_id": 0})
+
+@api_router.delete("/admin/products/{product_id}")
+async def delete_product(product_id: str, request: Request, admin_user: dict = Depends(get_admin_user)):
+    """Delete a product (admin)"""
+    product = await db.products.find_one({"id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    result = await db.products.delete_one({"id": product_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Invalidate product cache
+    await cache.invalidate_product(product_id)
+    
+    # Also clean up related data
+    await db.wishlists.delete_many({"product_id": product_id})
+    await db.alerts.delete_many({"product_id": product_id})
+    
+    # Audit log
+    await log_audit(
+        admin_user, "DELETE", "product", product_id,
+        {"title": product.get("title"), "category": product.get("category")},
+        request
+    )
+    
+    return {"message": "Product deleted successfully"}
+
+@api_router.get("/admin/products/categories/list")
+async def get_product_categories(admin_user: dict = Depends(get_admin_user)):
+    """Get list of unique categories"""
+    categories = await db.products.distinct("category")
+    return {"categories": categories}
+
 # ============ ADMIN: STATS & LOOKUPS ============
 
 @api_router.get("/admin/stats")
