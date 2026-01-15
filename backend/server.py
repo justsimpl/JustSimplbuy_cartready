@@ -951,6 +951,384 @@ async def get_user_order_detail(order_id: str, current_user: dict = Depends(get_
     
     return order
 
+# ============ CART ROUTES ============
+
+@api_router.get("/cart")
+async def get_cart(current_user: dict = Depends(get_current_user)):
+    """Get user's shopping cart"""
+    cart = await db.carts.find_one({"user_id": current_user["id"]}, {"_id": 0})
+    if not cart:
+        return {"items": [], "total": 0, "item_count": 0}
+    
+    # Enrich cart items with product details
+    enriched_items = []
+    total = 0
+    for item in cart.get("items", []):
+        product = await db.products.find_one({"id": item["product_id"]}, {"_id": 0})
+        if product:
+            item_total = product["price"] * item["quantity"]
+            enriched_items.append({
+                "product_id": item["product_id"],
+                "quantity": item["quantity"],
+                "product": product,
+                "item_total": item_total
+            })
+            total += item_total
+    
+    return {
+        "items": enriched_items,
+        "total": round(total, 2),
+        "item_count": sum(item["quantity"] for item in enriched_items)
+    }
+
+@api_router.post("/cart/add")
+async def add_to_cart(cart_item: CartItem, current_user: dict = Depends(get_current_user)):
+    """Add item to cart"""
+    # Verify product exists
+    product = await db.products.find_one({"id": cart_item.product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    cart = await db.carts.find_one({"user_id": current_user["id"]})
+    
+    if cart:
+        # Check if product already in cart
+        existing_item = next((item for item in cart.get("items", []) if item["product_id"] == cart_item.product_id), None)
+        if existing_item:
+            # Update quantity
+            await db.carts.update_one(
+                {"user_id": current_user["id"], "items.product_id": cart_item.product_id},
+                {"$inc": {"items.$.quantity": cart_item.quantity}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+        else:
+            # Add new item
+            await db.carts.update_one(
+                {"user_id": current_user["id"]},
+                {"$push": {"items": {"product_id": cart_item.product_id, "quantity": cart_item.quantity}},
+                 "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+    else:
+        # Create new cart
+        await db.carts.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "items": [{"product_id": cart_item.product_id, "quantity": cart_item.quantity}],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return await get_cart(current_user)
+
+@api_router.put("/cart/update/{product_id}")
+async def update_cart_item(product_id: str, update: CartItemUpdate, current_user: dict = Depends(get_current_user)):
+    """Update cart item quantity"""
+    if update.quantity <= 0:
+        # Remove item
+        await db.carts.update_one(
+            {"user_id": current_user["id"]},
+            {"$pull": {"items": {"product_id": product_id}}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    else:
+        await db.carts.update_one(
+            {"user_id": current_user["id"], "items.product_id": product_id},
+            {"$set": {"items.$.quantity": update.quantity, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    
+    return await get_cart(current_user)
+
+@api_router.delete("/cart/remove/{product_id}")
+async def remove_from_cart(product_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove item from cart"""
+    await db.carts.update_one(
+        {"user_id": current_user["id"]},
+        {"$pull": {"items": {"product_id": product_id}}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return await get_cart(current_user)
+
+@api_router.delete("/cart/clear")
+async def clear_cart(current_user: dict = Depends(get_current_user)):
+    """Clear entire cart"""
+    await db.carts.update_one(
+        {"user_id": current_user["id"]},
+        {"$set": {"items": [], "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Cart cleared", "items": [], "total": 0, "item_count": 0}
+
+# ============ CHECKOUT & PAYMENT ROUTES ============
+
+@api_router.post("/checkout/create-session")
+async def create_checkout_session(checkout_data: CheckoutRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    """Create Stripe checkout session for cart"""
+    # Get cart
+    cart = await db.carts.find_one({"user_id": current_user["id"]})
+    if not cart or not cart.get("items"):
+        raise HTTPException(status_code=400, detail="Cart is empty")
+    
+    # Calculate total from server-side product prices (security: never trust frontend amounts)
+    total = 0.0
+    order_items = []
+    for item in cart["items"]:
+        product = await db.products.find_one({"id": item["product_id"]}, {"_id": 0})
+        if not product:
+            raise HTTPException(status_code=400, detail=f"Product {item['product_id']} not found")
+        if not product.get("in_stock", True):
+            raise HTTPException(status_code=400, detail=f"Product {product['title']} is out of stock")
+        
+        item_total = product["price"] * item["quantity"]
+        total += item_total
+        order_items.append({
+            "product_id": item["product_id"],
+            "quantity": item["quantity"],
+            "price": product["price"],
+            "title": product["title"]
+        })
+    
+    total = round(total, 2)
+    
+    # Get or use shipping address
+    shipping_address = None
+    if checkout_data.shipping_address:
+        shipping_address = checkout_data.shipping_address.model_dump()
+    elif checkout_data.use_saved_address:
+        user = await db.users.find_one({"id": current_user["id"]})
+        if user and user.get("shipping_address"):
+            shipping_address = user["shipping_address"]
+    
+    if not shipping_address or not shipping_address.get("address_line1"):
+        raise HTTPException(status_code=400, detail="Shipping address is required")
+    
+    # Create order in pending state
+    order_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    order_doc = {
+        "id": order_id,
+        "user_id": current_user["id"],
+        "user_email": current_user["email"],
+        "items": order_items,
+        "total_amount": total,
+        "status": "pending",
+        "shipping_address": shipping_address,
+        "payment_status": "pending",
+        "payment_method": checkout_data.payment_method,
+        "created_at": now,
+        "updated_at": now
+    }
+    await db.orders.insert_one(order_doc)
+    
+    # Construct success and cancel URLs from frontend origin
+    origin_url = checkout_data.origin_url.rstrip('/')
+    success_url = f"{origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin_url}/checkout/cancel?order_id={order_id}"
+    
+    # Initialize Stripe checkout
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    # Determine payment methods based on user selection
+    payment_methods = ["card"]
+    if checkout_data.payment_method in ["affirm", "klarna", "afterpay_clearpay"]:
+        payment_methods = ["card", checkout_data.payment_method]
+    
+    # Create checkout session
+    checkout_request = CheckoutSessionRequest(
+        amount=total,
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "order_id": order_id,
+            "user_id": current_user["id"],
+            "user_email": current_user["email"]
+        },
+        payment_methods=payment_methods
+    )
+    
+    try:
+        session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+    except Exception as e:
+        # Rollback order on failure
+        await db.orders.delete_one({"id": order_id})
+        raise HTTPException(status_code=500, detail=f"Failed to create checkout session: {str(e)}")
+    
+    # Create payment transaction record
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "order_id": order_id,
+        "user_id": current_user["id"],
+        "user_email": current_user["email"],
+        "amount": total,
+        "currency": "usd",
+        "payment_status": "initiated",
+        "payment_method": checkout_data.payment_method,
+        "metadata": {"order_id": order_id},
+        "created_at": now,
+        "updated_at": now
+    })
+    
+    # Update order with session ID
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {"stripe_session_id": session.session_id}}
+    )
+    
+    return {
+        "checkout_url": session.url,
+        "session_id": session.session_id,
+        "order_id": order_id
+    }
+
+@api_router.get("/checkout/status/{session_id}")
+async def get_checkout_status(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Check payment status and update order"""
+    # Find transaction
+    transaction = await db.payment_transactions.find_one({"session_id": session_id})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Security: verify user owns this transaction
+    if transaction["user_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
+    # Check if already processed
+    if transaction["payment_status"] == "paid":
+        order = await db.orders.find_one({"id": transaction["order_id"]}, {"_id": 0})
+        return {
+            "status": "complete",
+            "payment_status": "paid",
+            "order_id": transaction["order_id"],
+            "order": order
+        }
+    
+    # Initialize Stripe and check status
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    try:
+        status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check status: {str(e)}")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update transaction and order based on status
+    if status.payment_status == "paid":
+        # Update transaction
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": "paid", "updated_at": now}}
+        )
+        
+        # Update order to confirmed
+        await db.orders.update_one(
+            {"id": transaction["order_id"]},
+            {"$set": {
+                "status": "confirmed",
+                "payment_status": "paid",
+                "paid_at": now,
+                "updated_at": now
+            }}
+        )
+        
+        # Clear user's cart
+        await db.carts.update_one(
+            {"user_id": current_user["id"]},
+            {"$set": {"items": [], "updated_at": now}}
+        )
+        
+        order = await db.orders.find_one({"id": transaction["order_id"]}, {"_id": 0})
+        return {
+            "status": "complete",
+            "payment_status": "paid",
+            "order_id": transaction["order_id"],
+            "order": order
+        }
+    elif status.status == "expired":
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": "expired", "updated_at": now}}
+        )
+        await db.orders.update_one(
+            {"id": transaction["order_id"]},
+            {"$set": {"status": "cancelled", "payment_status": "expired", "updated_at": now}}
+        )
+        return {
+            "status": "expired",
+            "payment_status": "expired",
+            "order_id": transaction["order_id"]
+        }
+    else:
+        return {
+            "status": status.status,
+            "payment_status": status.payment_status,
+            "order_id": transaction["order_id"]
+        }
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature")
+    
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    try:
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        now = datetime.now(timezone.utc).isoformat()
+        
+        if webhook_response.payment_status == "paid":
+            # Update transaction
+            await db.payment_transactions.update_one(
+                {"session_id": webhook_response.session_id},
+                {"$set": {"payment_status": "paid", "updated_at": now}}
+            )
+            
+            # Get order ID from transaction
+            transaction = await db.payment_transactions.find_one({"session_id": webhook_response.session_id})
+            if transaction:
+                await db.orders.update_one(
+                    {"id": transaction["order_id"]},
+                    {"$set": {
+                        "status": "confirmed",
+                        "payment_status": "paid",
+                        "paid_at": now,
+                        "updated_at": now
+                    }}
+                )
+                
+                # Clear user's cart
+                await db.carts.update_one(
+                    {"user_id": transaction["user_id"]},
+                    {"$set": {"items": [], "updated_at": now}}
+                )
+        
+        return {"status": "received"}
+    except Exception as e:
+        logging.error(f"Webhook error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+@api_router.get("/checkout/order/{order_id}")
+async def get_checkout_order(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Get order details for checkout confirmation"""
+    order = await db.orders.find_one({"id": order_id, "user_id": current_user["id"]}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Enrich with product details
+    enriched_items = []
+    for item in order.get("items", []):
+        product = await db.products.find_one({"id": item.get("product_id")}, {"_id": 0})
+        enriched_items.append({**item, "product": product})
+    order["items"] = enriched_items
+    
+    return order
+
 # ============ PASSWORD RESET ROUTES ============
 
 @api_router.get("/auth/verify-reset-token/{token}")
