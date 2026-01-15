@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingCart, Truck, 
-  ChevronLeft, ChevronRight, TrendingUp, LogOut, Menu, FileText
+  ChevronLeft, ChevronRight, TrendingUp, LogOut, Menu, FileText, Package
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { path: '/admin/products', icon: Package, label: 'Products' },
   { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
   { path: '/admin/shipments', icon: Truck, label: 'Shipments' },
