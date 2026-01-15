@@ -144,6 +144,36 @@ class AdminUserResponse(BaseModel):
     created_at: str
     orders_count: int = 0
 
+# ============ ADMIN PRODUCT MODELS ============
+
+class ProductCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    subcategory: str = ""
+    price: float
+    original_price: Optional[float] = None
+    rating: float = 0.0
+    reviews_count: int = 0
+    image_url: str = ""
+    brand: str = ""
+    features: List[str] = []
+    in_stock: bool = True
+
+class ProductUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    price: Optional[float] = None
+    original_price: Optional[float] = None
+    rating: Optional[float] = None
+    reviews_count: Optional[int] = None
+    image_url: Optional[str] = None
+    brand: Optional[str] = None
+    features: Optional[List[str]] = None
+    in_stock: Optional[bool] = None
+
 # ============ PASSWORD RESET MODELS ============
 
 class ForgotPasswordRequest(BaseModel):
