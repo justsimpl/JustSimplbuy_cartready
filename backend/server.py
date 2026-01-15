@@ -1023,7 +1023,7 @@ async def get_wishlist(current_user: dict = Depends(get_current_user)):
     # Get product details for each wishlist item
     result = []
     for item in items:
-        product = next((p for p in MOCK_PRODUCTS if p["id"] == item["product_id"]), None)
+        product = await db.products.find_one({"id": item["product_id"]}, {"_id": 0})
         if product:
             result.append({**item, "product": product})
     
