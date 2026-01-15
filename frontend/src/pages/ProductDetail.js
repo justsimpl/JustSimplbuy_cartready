@@ -120,15 +120,16 @@ export default function ProductDetailPage() {
 
   if (!product) return null;
 
-  const discount = Math.round(((product.original_price - product.price) / product.original_price) * 100);
-  const priceHistoryData = product.price_history?.map(p => ({
+  const discount = product.original_price ? Math.round(((product.original_price - product.price) / product.original_price) * 100) : 0;
+  const priceHistory = product.price_history || [];
+  const priceHistoryData = priceHistory.map(p => ({
     date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     price: p.price
-  })) || [];
+  }));
 
-  const lowestPrice = Math.min(...product.price_history.map(p => p.price));
-  const highestPrice = Math.max(...product.price_history.map(p => p.price));
-  const avgPrice = (product.price_history.reduce((acc, p) => acc + p.price, 0) / product.price_history.length).toFixed(2);
+  const lowestPrice = priceHistory.length > 0 ? Math.min(...priceHistory.map(p => p.price)) : product.price;
+  const highestPrice = priceHistory.length > 0 ? Math.max(...priceHistory.map(p => p.price)) : product.price;
+  const avgPrice = priceHistory.length > 0 ? (priceHistory.reduce((acc, p) => acc + p.price, 0) / priceHistory.length).toFixed(2) : product.price.toFixed(2);
 
   return (
     <div className="min-h-screen bg-white" data-testid="product-detail-page">
