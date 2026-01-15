@@ -17,6 +17,12 @@ import CategoriesPage from "./pages/Categories";
 import WishlistPage from "./pages/Wishlist";
 import AlertsPage from "./pages/Alerts";
 
+// Cart & Checkout Pages
+import CartPage from "./pages/Cart";
+import CheckoutPage from "./pages/Checkout";
+import CheckoutSuccessPage from "./pages/CheckoutSuccess";
+import CheckoutCancelPage from "./pages/CheckoutCancel";
+
 // Admin Pages
 import AdminLoginPage from "./pages/admin/AdminLogin";
 import AdminForgotPasswordPage from "./pages/admin/AdminForgotPassword";
