@@ -555,7 +555,7 @@ export default function AdminOrders() {
                   <div className="bg-slate-50 rounded-lg p-3 space-y-2">
                     {selectedOrder.items?.map((item, i) => (
                       <div key={i} className="flex justify-between">
-                        <span>{item.product_title} x{item.quantity}</span>
+                        <span>{item.title || item.product_title} x{item.quantity}</span>
                         <span className="mono">${(item.price * item.quantity).toFixed(2)}</span>
                       </div>
                     ))}
@@ -565,11 +565,31 @@ export default function AdminOrders() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-slate-500">Shipping Address</p>
-                    <p className="text-sm">{selectedOrder.shipping_address}</p>
+                    {typeof selectedOrder.shipping_address === 'object' && selectedOrder.shipping_address ? (
+                      <div className="text-sm">
+                        <p className="font-medium">{selectedOrder.shipping_address.full_name}</p>
+                        <p>{selectedOrder.shipping_address.address_line1}</p>
+                        {selectedOrder.shipping_address.address_line2 && <p>{selectedOrder.shipping_address.address_line2}</p>}
+                        <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} {selectedOrder.shipping_address.zip_code}</p>
+                        <p>{selectedOrder.shipping_address.country}</p>
+                        {selectedOrder.shipping_address.phone && <p>{selectedOrder.shipping_address.phone}</p>}
+                      </div>
+                    ) : (
+                      <p className="text-sm">{selectedOrder.shipping_address || 'N/A'}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-slate-500">Billing Address</p>
-                    <p className="text-sm">{selectedOrder.billing_address || 'Same as shipping'}</p>
+                    {typeof selectedOrder.billing_address === 'object' && selectedOrder.billing_address ? (
+                      <div className="text-sm">
+                        <p className="font-medium">{selectedOrder.billing_address.full_name}</p>
+                        <p>{selectedOrder.billing_address.address_line1}</p>
+                        {selectedOrder.billing_address.address_line2 && <p>{selectedOrder.billing_address.address_line2}</p>}
+                        <p>{selectedOrder.billing_address.city}, {selectedOrder.billing_address.state} {selectedOrder.billing_address.zip_code}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{selectedOrder.billing_address || 'Same as shipping'}</p>
+                    )}
                   </div>
                 </div>
 
