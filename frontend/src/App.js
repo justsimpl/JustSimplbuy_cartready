@@ -62,6 +62,12 @@ function App() {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           
+          {/* Cart & Checkout */}
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
+          
           {/* Auth pages - no navbar */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
