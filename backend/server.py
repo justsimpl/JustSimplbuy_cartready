@@ -1062,7 +1062,7 @@ async def get_alerts(current_user: dict = Depends(get_current_user)):
     
     result = []
     for alert in alerts:
-        product = next((p for p in MOCK_PRODUCTS if p["id"] == alert["product_id"]), None)
+        product = await db.products.find_one({"id": alert["product_id"]}, {"_id": 0})
         if product:
             result.append({**alert, "product": product})
     
