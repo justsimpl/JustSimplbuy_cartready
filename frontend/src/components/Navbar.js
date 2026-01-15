@@ -24,15 +24,20 @@ export const Navbar = () => {
   useEffect(() => {
     if (user) {
       fetchCartCount();
+    } else {
+      setCartCount(0);
     }
   }, [user]);
 
   const fetchCartCount = async () => {
     try {
-      const response = await axios.get(`${API}/cart`, { headers: getAuthHeader() });
+      const headers = getAuthHeader();
+      if (!headers.Authorization) return;
+      const response = await axios.get(`${API}/cart`, { headers });
       setCartCount(response.data.item_count || 0);
     } catch (error) {
       console.error('Error fetching cart:', error);
+      setCartCount(0);
     }
   };
 
