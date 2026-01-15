@@ -156,6 +156,5 @@ Build a site based around Amazon's API catalog and PA-API with complete searchab
 - [ ] Price history chart on product detail page
 
 ## Next Tasks
-1. Integrate real Amazon PA-API when user provides credentials
-2. Add email service (SendGrid/Resend) for password reset emails
-3. Implement price alert email notifications
+1. Test full checkout flow with Stripe test mode
+2. Add email notifications for order confirmations
