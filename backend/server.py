@@ -40,6 +40,24 @@ api_router = APIRouter(prefix="/api")
 
 # ============ MODELS ============
 
+class ShippingAddress(BaseModel):
+    full_name: str = ""
+    address_line1: str = ""
+    address_line2: str = ""
+    city: str = ""
+    state: str = ""
+    zip_code: str = ""
+    country: str = "USA"
+    phone: str = ""
+
+class PaymentInfo(BaseModel):
+    card_last_four: str = ""
+    card_brand: str = ""  # visa, mastercard, amex, etc
+    card_holder_name: str = ""
+    expiry_month: str = ""
+    expiry_year: str = ""
+    billing_zip: str = ""
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -49,11 +67,27 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    shipping_address: Optional[ShippingAddress] = None
+    payment_info: Optional[PaymentInfo] = None
+
 class UserResponse(BaseModel):
     id: str
     email: str
     name: str
     role: str = "user"
+    created_at: str
+
+class UserProfileResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    phone: str = ""
+    role: str = "user"
+    shipping_address: Optional[ShippingAddress] = None
+    payment_info: Optional[PaymentInfo] = None
     created_at: str
 
 class TokenResponse(BaseModel):
