@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -26,11 +26,17 @@ db = client[os.environ['DB_NAME']]
 # Redis cache import
 from redis_cache import cache, ANONYMOUS_RATE_LIMIT, DEFAULT_RATE_LIMIT, ADMIN_RATE_LIMIT
 
+# Stripe checkout import
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+
 # JWT Config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pricewise-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 RESET_TOKEN_EXPIRATION_HOURS = 1
+
+# Stripe Config
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
 
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
