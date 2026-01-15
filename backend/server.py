@@ -1815,6 +1815,8 @@ async def get_admin_stats(admin_user: dict = Depends(get_admin_user)):
         "total_users": total_users,
         "total_orders": total_orders,
         "total_shipments": total_shipments,
+        "total_products": total_products,
+        "products_in_stock": products_in_stock,
         "total_revenue": round(total_revenue, 2),
         "orders_by_status": orders_by_status,
         "shipments_by_status": shipments_by_status,
