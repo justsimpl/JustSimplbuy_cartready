@@ -1,0 +1,18 @@
+{
+  "name": "justsimplbuy-cartready",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CartReady full-stack app",
+  "scripts": {
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "install:frontend": "cd frontend && npm install",
+    "start:frontend": "cd frontend && npm start",
+    "start:backend": "cd backend && python -m uvicorn server:app --reload",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test:backend": "cd backend && python -m pytest tests -v"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
