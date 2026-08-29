@@ -2,7 +2,7 @@ services:
   - type: web
     name: instabooks-api
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./backend/Dockerfile.prod
     dockerContext: ./backend
     plan: free
     healthCheckPath: /api/health

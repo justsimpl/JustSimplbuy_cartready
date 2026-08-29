@@ -1,10 +1,22 @@
 {
-  "name": "instabooks",
+  "name": "justsimplbuy-cartready",
+  "version": "0.1.0",
   "private": true,
+  "description": "CartReady full-stack app",
   "scripts": {
-    "build:frontend": "cd frontend && npm install --legacy-peer-deps && REACT_APP_BACKEND_URL= npm run build",
-    "deploy": "npm run build:frontend && wrangler deploy",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm install --legacy-peer-deps && npm run build",
+    "build:frontend:cloudflare": "cd frontend && npm install --legacy-peer-deps && REACT_APP_BACKEND_URL= npm run build",
+    "install:frontend": "cd frontend && npm install --legacy-peer-deps",
+    "start:frontend": "cd frontend && npm start",
+    "start:backend": "cd backend && python -m uvicorn server:app --reload",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test:backend": "cd backend && python -m pytest tests -v",
+    "deploy": "npm run build:frontend:cloudflare && wrangler deploy",
     "dev:worker": "wrangler dev"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@cloudflare/containers": "0.0.30"

@@ -19,7 +19,7 @@
   "containers": [
     {
       "class_name": "Backend",
-      "image": "./backend/Dockerfile",
+      "image": "./backend/Dockerfile.prod",
       "max_instances": 3
     }
   ],

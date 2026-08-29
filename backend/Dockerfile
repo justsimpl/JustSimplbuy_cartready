@@ -2,15 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Local/docker-compose image: install runtime deps without unavailable PyPI packages.
+COPY requirements.txt requirements.full.txt
+RUN grep -v '^emergentintegrations' requirements.full.txt > requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
 
-COPY requirements.prod.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
 
-COPY emergentintegrations ./emergentintegrations
-COPY redis_cache.py server.py ./
+EXPOSE 8000
 
-EXPOSE 8080
-
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]

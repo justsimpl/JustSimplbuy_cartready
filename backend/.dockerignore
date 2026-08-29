@@ -1,5 +1,10 @@
-.venv
 __pycache__
 *.pyc
+.venv
+venv
 .env
 .env.*
+*.md
+.pytest_cache
+.coverage
+htmlcov
