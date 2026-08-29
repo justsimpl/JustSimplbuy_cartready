@@ -26,15 +26,30 @@ Full-stack e-commerce app: React frontend + FastAPI backend (MongoDB, Redis, Str
 
 - **Frontend only** (static build):
   ```bash
+  cd frontend
+  npm install --legacy-peer-deps
   npm run build
   ```
-  or from repo root:
-  ```bash
-  npm run build:frontend
-  ```
-  Output: `frontend/build/` — deploy to any static host (Vercel, Netlify, S3, etc.).
+  Output: `frontend/build/` — deploy to any static host (Vercel, Netlify, S3, Cloudflare Pages, etc.).
 
-- **Backend**: ensure `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, and optionally `REDIS_URL`, `STRIPE_API_KEY`, `CORS_ORIGINS` are set in production.
+- **Cloudflare Workers** (optional full-stack): tooling lives in `deploy/`:
+  ```bash
+  cd deploy
+  npm install
+  npm run deploy
+  ```
+
+- **Backend (Railway / Render)**: use the root `Dockerfile` (FastAPI on port 8080). Set `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, and `CORS_ORIGINS` in the host dashboard.
+
+### Railway API deploy
+
+1. Create a service from this repo (branch `main`).
+2. In **Settings → Build**, set **Builder** to **Dockerfile** and path `Dockerfile` (repo root).
+3. If builds still show Railpack/Node, add service variable: `RAILWAY_DOCKERFILE_PATH=Dockerfile`.
+4. Set variables: `MONGO_URL`, `DB_NAME=justsimplbuy`, `JWT_SECRET`, `ENV=production`, `CORS_ORIGINS=https://instabooks.digital,https://www.instabooks.digital`.
+5. Health check path: `/api/health`. Railway sets `PORT` automatically.
+
+Alternative: set **Root Directory** to `backend` and use `Dockerfile.prod` (see `backend/railway.toml`).
 
 ## Docker deployment
 

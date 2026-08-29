@@ -8,7 +8,9 @@ if [ $# -lt 1 ]; then
 fi
 
 MONGO_URL="$1"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+cd "$ROOT/deploy"
 printf '%s' "$MONGO_URL" | npx wrangler secret put MONGO_URL
 printf '%s' "justsimplbuy" | npx wrangler secret put DB_NAME
 

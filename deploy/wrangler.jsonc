@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "instabooks",
-  "main": "worker/src/index.ts",
+  "main": "../worker/src/index.ts",
   "compatibility_date": "2026-01-15",
   "vars": {
     "ENV": "production",
@@ -12,14 +12,14 @@
     "required": ["MONGO_URL", "JWT_SECRET"]
   },
   "assets": {
-    "directory": "./frontend/build",
+    "directory": "../frontend/build",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
   "containers": [
     {
       "class_name": "Backend",
-      "image": "./backend/Dockerfile.prod",
+      "image": "../backend/Dockerfile.prod",
       "max_instances": 3
     }
   ],
