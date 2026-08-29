@@ -1,0 +1,17 @@
+{
+  "name": "instabooks",
+  "private": true,
+  "scripts": {
+    "build:frontend": "cd frontend && npm install --legacy-peer-deps && REACT_APP_BACKEND_URL= npm run build",
+    "deploy": "npm run build:frontend && wrangler deploy",
+    "dev:worker": "wrangler dev"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "0.0.30"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.127.1"
+  }
+}

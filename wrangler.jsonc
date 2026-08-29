@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "instabooks",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-01-15",
+  "vars": {
+    "ENV": "production",
+    "DB_NAME": "justsimplbuy",
+    "CORS_ORIGINS": "https://instabooks.digital,https://www.instabooks.digital"
+  },
+  "secrets": {
+    "required": ["MONGO_URL", "JWT_SECRET"]
+  },
+  "assets": {
+    "directory": "./frontend/build",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "containers": [
+    {
+      "class_name": "Backend",
+      "image": "./backend/Dockerfile",
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Backend",
+        "name": "BACKEND"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["Backend"],
+      "tag": "v1"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "instabooks.digital",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.instabooks.digital",
+      "custom_domain": true
+    }
+  ]
+}
