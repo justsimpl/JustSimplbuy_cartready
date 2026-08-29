@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: instabooks-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.prod
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: justsimplbuy
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://instabooks.digital,https://www.instabooks.digital

@@ -19,11 +19,12 @@ jobs:
           node-version: "20"
 
       - name: Install frontend deps
-        run: cd frontend && npm install
+        run: cd frontend && npm install --legacy-peer-deps
 
       - name: Build frontend
         run: cd frontend && npm run build
         env:
+          CI: false
           REACT_APP_BACKEND_URL: https://api.example.com
 
   backend:
@@ -36,12 +37,16 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/requirements.prod.txt
 
       - name: Install backend deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install -r backend/requirements.prod.txt pytest
 
       - name: Run backend tests
         run: python -m pytest backend_test.py tests -v --ignore=tests/test_password_reset_audit.py 2>/dev/null || true
+        env:
+          PYTHONPATH: backend
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: test

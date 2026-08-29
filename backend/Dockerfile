@@ -2,11 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Local/docker-compose image: install runtime deps without unavailable PyPI packages.
+COPY requirements.txt requirements.full.txt
+RUN grep -v '^emergentintegrations' requirements.full.txt > requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Application
 COPY . .
 
 EXPOSE 8000
