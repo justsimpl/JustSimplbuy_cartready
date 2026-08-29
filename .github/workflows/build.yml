@@ -24,6 +24,7 @@ jobs:
       - name: Build frontend
         run: cd frontend && npm run build
         env:
+          CI: false
           REACT_APP_BACKEND_URL: https://api.example.com
 
   backend:
