@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npm run build:frontend",
     "build:frontend": "cd ../frontend && npm install --legacy-peer-deps && npm run build",
-    "build:frontend:cloudflare": "cd ../frontend && npm install --legacy-peer-deps && REACT_APP_BACKEND_URL= npm run build",
+    "build:frontend:cloudflare": "cd ../frontend && npm install --legacy-peer-deps && REACT_APP_BACKEND_URL=https://api.instabooks.digital npm run build",
     "install:frontend": "cd ../frontend && npm install --legacy-peer-deps",
     "start:frontend": "cd ../frontend && npm start",
     "start:backend": "cd ../backend && python -m uvicorn server:app --reload",
