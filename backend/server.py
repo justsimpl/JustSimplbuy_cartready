@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -25,12 +26,26 @@ db = client[os.environ['DB_NAME']]
 
 # Redis cache import
 from redis_cache import cache, ANONYMOUS_RATE_LIMIT, DEFAULT_RATE_LIMIT, ADMIN_RATE_LIMIT
+from security import (
+    IS_PRODUCTION,
+    AuthRateLimitMiddleware,
+    SecurityHeadersMiddleware,
+    allow_public_registration,
+    fallback_rate_limiter,
+    get_allowed_hosts,
+    get_allowed_origins,
+    validate_password_strength,
+    validate_startup_config,
+    FALLBACK_RATE_LIMIT,
+    FALLBACK_RATE_WINDOW,
+)
 
 # Stripe checkout import
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 
 # JWT Config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'pricewise-secret-key-2024')
+validate_startup_config(JWT_SECRET)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 RESET_TOKEN_EXPIRATION_HOURS = 1
@@ -41,7 +56,11 @@ STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
 
-app = FastAPI()
+app = FastAPI(
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+)
 api_router = APIRouter(prefix="/api")
 
 # ============ MODELS ============
@@ -776,6 +795,11 @@ async def validate_reset_token(token: str):
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
+    if not allow_public_registration():
+        raise HTTPException(status_code=403, detail="Public registration is disabled")
+
+    validate_password_strength(user_data.password)
+
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -1391,8 +1415,10 @@ async def reset_password(request_data: ResetPasswordRequest):
     if not reset_doc:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     
-    if len(request_data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if len(request_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    validate_password_strength(request_data.new_password)
     
     # Update user password
     hashed_password = hash_password(request_data.new_password)
@@ -1703,6 +1729,8 @@ async def get_user_by_id(user_id: str, admin_user: dict = Depends(get_admin_user
 @api_router.post("/admin/users")
 async def create_user_admin(user_data: AdminUserCreate, request: Request, admin_user: dict = Depends(get_admin_user)):
     """Create a new user (admin)"""
+    validate_password_strength(user_data.password)
+
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -1760,6 +1788,7 @@ async def update_user_admin(user_id: str, user_data: AdminUserUpdate, request: R
         update_data["role"] = user_data.role
         changes["role"] = {"from": user.get("role"), "to": user_data.role}
     if user_data.password is not None:
+        validate_password_strength(user_data.password)
         update_data["password"] = hash_password(user_data.password)
         changes["password"] = "changed"
     
@@ -2501,10 +2530,14 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=get_allowed_origins(),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+allowed_hosts = get_allowed_hosts()
+if allowed_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # ============ RATE LIMITING MIDDLEWARE ============
 
@@ -2520,15 +2553,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Skip rate limiting for certain paths
         if any(request.url.path.startswith(path) for path in self.SKIP_PATHS):
             return await call_next(request)
-        
-        # Skip if Redis not connected
-        if not cache.is_connected():
-            return await call_next(request)
-        
+
         # Determine identifier and limit based on auth
-        identifier = f"ip:{request.client.host}"
+        identifier = f"ip:{request.client.host if request.client else 'unknown'}"
         limit = ANONYMOUS_RATE_LIMIT
-        
+
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             try:
@@ -2536,13 +2565,35 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
                 user_id = payload.get("user_id")
                 if user_id:
-                    # Check user role for limit
                     user = await db.users.find_one({"id": user_id}, {"_id": 0, "role": 1})
                     if user:
                         identifier = f"user:{user_id}"
                         limit = ADMIN_RATE_LIMIT if user.get("role") == "admin" else DEFAULT_RATE_LIMIT
-            except:
-                pass  # Use IP-based limiting for invalid tokens
+            except Exception:
+                pass
+
+        # Use in-memory fallback when Redis is unavailable
+        if not cache.is_connected():
+            allowed, remaining, reset_time = fallback_rate_limiter.check(
+                identifier, FALLBACK_RATE_LIMIT, FALLBACK_RATE_WINDOW
+            )
+            if not allowed:
+                return Response(
+                    content='{"detail":"Rate limit exceeded. Please try again later."}',
+                    status_code=429,
+                    media_type="application/json",
+                    headers={
+                        "X-RateLimit-Limit": str(FALLBACK_RATE_LIMIT),
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": str(reset_time),
+                        "Retry-After": str(reset_time),
+                    },
+                )
+            response = await call_next(request)
+            response.headers["X-RateLimit-Limit"] = str(FALLBACK_RATE_LIMIT)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Reset"] = str(reset_time)
+            return response
         
         # Check rate limit
         allowed, remaining, reset_time = await cache.check_rate_limit(identifier, limit)
@@ -2570,6 +2621,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 # Add rate limiting middleware (must be added after CORS middleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(AuthRateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 logging.basicConfig(
     level=logging.INFO,

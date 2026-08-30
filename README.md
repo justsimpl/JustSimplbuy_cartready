@@ -80,6 +80,25 @@ For production, set env (e.g. real `MONGO_URL`, `REDIS_URL`, `JWT_SECRET`, `STRI
 
 See `backend/.env.example` and `frontend/.env.example` for full lists.
 
-## CI
+## Production security
+
+Set these on Railway (API) and Cloudflare (frontend):
+
+| Variable | Purpose |
+|----------|---------|
+| `ENV=production` | Disables API docs, enforces stricter defaults |
+| `JWT_SECRET` | Strong random signing key (required in production) |
+| `CORS_ORIGINS` | Explicit frontend origins only (no `*`) |
+| `ALLOW_PUBLIC_REGISTRATION=false` | Blocks open sign-ups (recommended) |
+| `ALLOWED_HOSTS` | API hostnames, e.g. `api.instabooks.digital,*.up.railway.app` |
+
+**Do this manually:**
+1. Change the default admin password (`admin@pricewise.com` / `admin123`) immediately.
+2. Rotate the MongoDB Atlas password (it was shared in chat earlier).
+3. In Atlas → Network Access, restrict IPs (or use Railway static egress if available).
+4. In Cloudflare → Security, enable **Bot Fight Mode** and consider a free WAF rule for `/api/auth/*`.
+5. Never commit `.env` files or secrets to git.
+
+The API adds security headers, auth brute-force limits, password rules, and rate limiting (with in-memory fallback when Redis is unavailable).
 
 - **Build** workflow (`.github/workflows/build.yml`): runs on push/PR to `main`/`master` — installs and builds frontend, runs backend tests.
