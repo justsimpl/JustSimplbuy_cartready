@@ -8,11 +8,12 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
+import { ProductImportDialog } from '../../components/ProductImportDialog';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { 
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, 
-  Loader2, Package, DollarSign, Image, Tag
+  Loader2, Package, DollarSign, Image, Download, Link2, ShoppingBag, ExternalLink, RefreshCw
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -36,6 +37,9 @@ export default function AdminProducts() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [shopify, setShopify] = useState({ configured: false });
+  const [pushingId, setPushingId] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -46,7 +50,7 @@ export default function AdminProducts() {
     price: '',
     original_price: '',
     brand: '',
-    image_url: '',
+    images: '',
     features: '',
     in_stock: true
   });
@@ -54,6 +58,43 @@ export default function AdminProducts() {
   useEffect(() => {
     fetchProducts();
   }, [page, categoryFilter]);
+
+  useEffect(() => {
+    axios.get(`${API}/admin/shopify/status`, { headers: getAuthHeader() })
+      .then(res => setShopify(res.data))
+      .catch(() => {});
+  }, []);
+
+  const handleExportCsv = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/products/export/shopify-csv`, {
+        headers: getAuthHeader(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'shopify-products.csv';
+      link.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('CSV downloaded. In Shopify: Products → Import');
+    } catch (error) {
+      toast.error('Failed to export products');
+    }
+  };
+
+  const handlePushToShopify = async (product) => {
+    setPushingId(product.id);
+    try {
+      await axios.post(`${API}/admin/products/${product.id}/shopify`, {}, { headers: getAuthHeader() });
+      toast.success(product.shopify_product_id ? 'Updated in Shopify' : 'Added to Shopify as a draft');
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to send to Shopify');
+    } finally {
+      setPushingId(null);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -89,7 +130,7 @@ export default function AdminProducts() {
       price: '',
       original_price: '',
       brand: '',
-      image_url: '',
+      images: '',
       features: '',
       in_stock: true
     });
@@ -106,7 +147,7 @@ export default function AdminProducts() {
       price: product.price?.toString() || '',
       original_price: product.original_price?.toString() || '',
       brand: product.brand || '',
-      image_url: product.image_url || '',
+      images: (product.images?.length ? product.images : [product.image_url].filter(Boolean)).join('\n'),
       features: (product.features || []).join('\n'),
       in_stock: product.in_stock !== false
     });
@@ -121,6 +162,7 @@ export default function AdminProducts() {
 
     setSaving(true);
     try {
+      const images = formData.images.split('\n').map(i => i.trim()).filter(Boolean);
       const payload = {
         title: formData.title,
         description: formData.description,
@@ -129,7 +171,8 @@ export default function AdminProducts() {
         price: parseFloat(formData.price),
         original_price: formData.original_price ? parseFloat(formData.original_price) : null,
         brand: formData.brand,
-        image_url: formData.image_url,
+        image_url: images[0] || '',
+        images,
         features: formData.features.split('\n').filter(f => f.trim()),
         in_stock: formData.in_stock
       };
@@ -175,10 +218,20 @@ export default function AdminProducts() {
             <p className="text-slate-500 mt-1">{total} products in catalog</p>
           </div>
           
-          <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700" data-testid="add-product-btn">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={handleExportCsv} data-testid="export-shopify-csv-btn">
+              <Download className="w-4 h-4 mr-2" />
+              Shopify CSV
+            </Button>
+            <Button variant="outline" onClick={() => setShowImport(true)} data-testid="import-product-btn">
+              <Link2 className="w-4 h-4 mr-2" />
+              Import from URL
+            </Button>
+            <Button onClick={openCreateModal} className="bg-indigo-600 hover:bg-indigo-700" data-testid="add-product-btn">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -280,6 +333,29 @@ export default function AdminProducts() {
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end gap-2">
+                          {product.shopify_admin_url && (
+                            <Button variant="outline" size="sm" asChild title="Open in Shopify">
+                              <a href={product.shopify_admin_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          )}
+                          {shopify.configured && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title={product.shopify_product_id ? 'Update in Shopify' : 'Add to Shopify'}
+                              disabled={pushingId === product.id}
+                              onClick={() => handlePushToShopify(product)}
+                              data-testid={`shopify-${product.id}`}
+                            >
+                              {pushingId === product.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : product.shopify_product_id
+                                  ? <RefreshCw className="w-4 h-4" />
+                                  : <ShoppingBag className="w-4 h-4" />}
+                            </Button>
+                          )}
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -321,6 +397,15 @@ export default function AdminProducts() {
             </div>
           )}
         </div>
+
+        <ProductImportDialog
+          open={showImport}
+          onOpenChange={setShowImport}
+          categories={CATEGORY_OPTIONS}
+          getAuthHeader={getAuthHeader}
+          shopifyConfigured={shopify.configured}
+          onImported={() => { setPage(1); fetchProducts(); }}
+        />
 
         {/* Create/Edit Modal */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -437,15 +522,23 @@ export default function AdminProducts() {
                   </Select>
                 </div>
                 
+                {editingProduct?.variants?.length > 0 && (
+                  <p className="col-span-2 text-sm text-slate-500">
+                    This product has {editingProduct.variants.length} variants
+                    ({editingProduct.options.map(o => o.name).join(' / ')}). Changing the price scales all variant prices.
+                  </p>
+                )}
+
                 <div className="col-span-2">
-                  <Label htmlFor="image_url">Image URL</Label>
+                  <Label htmlFor="images">Image URLs (one per line, first is the main image)</Label>
                   <div className="relative">
-                    <Image className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                      id="image_url"
-                      value={formData.image_url}
-                      onChange={(e) => setFormData({...formData, image_url: e.target.value})}
+                    <Image className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <Textarea
+                      id="images"
+                      value={formData.images}
+                      onChange={(e) => setFormData({...formData, images: e.target.value})}
                       placeholder="https://example.com/image.jpg"
+                      rows={3}
                       className="pl-9"
                     />
                   </div>

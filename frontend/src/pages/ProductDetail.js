@@ -27,12 +27,14 @@ export default function ProductDetailPage() {
   const [hasAlert, setHasAlert] = useState(false);
   const [targetPrice, setTargetPrice] = useState('');
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const response = await axios.get(`${API}/products/${id}`);
         setProduct(response.data);
+        setActiveImage(0);
         
         // Check wishlist and alerts if user is logged in
         if (user) {
@@ -121,6 +123,7 @@ export default function ProductDetailPage() {
   if (!product) return null;
 
   const discount = product.original_price ? Math.round(((product.original_price - product.price) / product.original_price) * 100) : 0;
+  const gallery = product.images?.length ? product.images : [product.image_url].filter(Boolean);
   const priceHistory = product.price_history || [];
   const priceHistoryData = priceHistory.map(p => ({
     date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -154,12 +157,29 @@ export default function ProductDetailPage() {
           <div className="relative">
             <div className="aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-slate-200">
               <img
-                src={product.image_url}
+                src={gallery[activeImage] || product.image_url}
                 alt={product.title}
                 className="w-full h-full object-cover"
                 data-testid="product-image"
               />
             </div>
+            {gallery.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-1" data-testid="product-gallery">
+                {gallery.map((src, index) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setActiveImage(index)}
+                    className={`w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 ${
+                      index === activeImage ? 'border-indigo-600' : 'border-slate-200'
+                    }`}
+                    aria-label={`Show image ${index + 1}`}
+                  >
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
             
             {/* Badges */}
             <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -241,19 +261,21 @@ export default function ProductDetailPage() {
             </p>
 
             {/* Features */}
-            <div className="mb-8">
-              <h3 className="font-semibold text-slate-900 mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
-                Key Features
-              </h3>
-              <ul className="space-y-2">
-                {product.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-600">
-                    <Check className="w-4 h-4 text-green-600" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {product.features?.length > 0 && (
+              <div className="mb-8">
+                <h3 className="font-semibold text-slate-900 mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
+                  Key Features
+                </h3>
+                <ul className="space-y-2">
+                  {product.features.map((feature, i) => (
+                    <li key={i} className="flex items-center gap-2 text-slate-600">
+                      <Check className="w-4 h-4 text-green-600" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3 mb-8">
