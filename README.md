@@ -76,9 +76,58 @@ For production, set env (e.g. real `MONGO_URL`, `REDIS_URL`, `JWT_SECRET`, `STRI
 | Backend   | `REDIS_URL`              | Redis URL (optional)                 |
 | Backend   | `STRIPE_API_KEY`         | Stripe API key (optional)            |
 | Backend   | `CORS_ORIGINS`           | Allowed origins (comma-separated)    |
+| Backend   | `SHOPIFY_STORE_DOMAIN`   | e.g. `my-store.myshopify.com` (optional, enables "Send to Shopify") |
+| Backend   | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | Credentials of a Shopify Dev Dashboard app with `write_products` (optional) |
+| Backend   | `SHOPIFY_ADMIN_ACCESS_TOKEN` | Alternative: token from an older admin-created custom app (optional) |
+| Backend   | `SHOPIFY_API_VERSION`    | Shopify Admin API version (optional, default `2026-07`) |
 | Frontend  | `REACT_APP_BACKEND_URL`  | Backend API base URL (no trailing /) |
 
 See `backend/.env.example` and `frontend/.env.example` for full lists.
+
+## Locked out of the admin panel?
+
+Password-reset emails are not wired up yet, so reset the password straight in the database
+with `backend/manage_admin.py`. You need the same `MONGO_URL` the live site uses
+(MongoDB Atlas → Connect → Drivers, or your Railway / Cloudflare secrets):
+
+```bash
+pip install pymongo bcrypt python-dotenv
+export MONGO_URL='mongodb+srv://USER:PASS@cluster.mongodb.net'
+export DB_NAME=justsimplbuy
+
+python backend/manage_admin.py --list                    # which admin accounts exist
+python backend/manage_admin.py --email you@example.com   # reset (or create) an admin; prompts for the password
+```
+
+Then sign in at `/admin/login`. Passwords need 8+ characters with at least one letter and one number.
+
+## Importing products from other websites
+
+Admin → **Products** → **Import from URL**. Paste one or more product page links (one per line),
+pick a category and an optional price markup, and click **Fetch product details**. You can edit the
+title/price and leave out any images before importing. Data is read from, in order:
+
+1. **Shopify stores** – the store's `/products/<handle>.json` (all images, price, compare-at price, vendor).
+2. **schema.org Product JSON-LD** – used by most shops (WooCommerce, BigCommerce, Wix, Squarespace, ...).
+3. **Open Graph / microdata / page heuristics** as a fallback.
+
+Some large marketplaces (Amazon, Walmart, ...) block automated requests; use the brand's or
+supplier's own product page instead. Only import products and photos you have permission to use.
+
+## Shopify
+
+Two ways to get catalog products into Shopify:
+
+- **CSV (no setup):** Admin → Products → **Shopify CSV** downloads every product in Shopify's import
+  format (all images included). In Shopify admin: **Products → Import**, choose the file.
+  Products are created as drafts.
+- **Live sync:** in the Shopify **Dev Dashboard** (dev.shopify.com, same organization as your store) create an
+  app, give it the `write_products` Admin API scope, release a version and install it on your store. From
+  the app's **Settings** copy the Client ID and secret. Set `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_CLIENT_ID` and
+  `SHOPIFY_CLIENT_SECRET` on the API host (the API exchanges them for a 24-hour token automatically; an older
+  admin-created custom app can use `SHOPIFY_ADMIN_ACCESS_TOKEN` instead). A shopping-bag button then
+  appears on each product (and a "Also create in Shopify" option in the import dialog). Shopify downloads
+  and hosts the images itself, so they keep working even if the source site removes them.
 
 ## Production security
 

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response
+from starlette.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -39,6 +40,9 @@ from security import (
     FALLBACK_RATE_LIMIT,
     FALLBACK_RATE_WINDOW,
 )
+
+import product_importer
+import shopify_client
 
 # Stripe checkout import
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
@@ -230,6 +234,8 @@ class ProductCreate(BaseModel):
     rating: float = 0.0
     reviews_count: int = 0
     image_url: str = ""
+    images: List[str] = []
+    source_url: str = ""
     brand: str = ""
     features: List[str] = []
     in_stock: bool = True
@@ -244,9 +250,16 @@ class ProductUpdate(BaseModel):
     rating: Optional[float] = None
     reviews_count: Optional[int] = None
     image_url: Optional[str] = None
+    images: Optional[List[str]] = None
     brand: Optional[str] = None
     features: Optional[List[str]] = None
     in_stock: Optional[bool] = None
+
+class ProductImportRequest(BaseModel):
+    url: str
+
+class ShopifyPushRequest(BaseModel):
+    status: str = "DRAFT"  # DRAFT or ACTIVE
 
 # ============ PASSWORD RESET MODELS ============
 
@@ -2224,6 +2237,10 @@ async def create_product(product_data: ProductCreate, request: Request, admin_us
     """Create a new product (admin)"""
     product_id = f"prod-{str(uuid.uuid4())[:8]}"
     now = datetime.now(timezone.utc).isoformat()
+    images = [img for img in product_data.images if img]
+    image_url = product_data.image_url or (images[0] if images else "")
+    if image_url and image_url not in images:
+        images.insert(0, image_url)
     
     product_doc = {
         "id": product_id,
@@ -2235,7 +2252,9 @@ async def create_product(product_data: ProductCreate, request: Request, admin_us
         "original_price": product_data.original_price or product_data.price,
         "rating": product_data.rating,
         "reviews_count": product_data.reviews_count,
-        "image_url": product_data.image_url or "",
+        "image_url": image_url,
+        "images": images,
+        "source_url": product_data.source_url or "",
         "brand": product_data.brand or "",
         "features": product_data.features or [],
         "in_stock": product_data.in_stock,
@@ -2289,6 +2308,10 @@ async def update_product(product_id: str, product_data: ProductUpdate, request: 
         update_data["reviews_count"] = product_data.reviews_count
     if product_data.image_url is not None:
         update_data["image_url"] = product_data.image_url
+    if product_data.images is not None:
+        update_data["images"] = [img for img in product_data.images if img]
+        if product_data.image_url is None:
+            update_data["image_url"] = update_data["images"][0] if update_data["images"] else ""
     if product_data.brand is not None:
         update_data["brand"] = product_data.brand
     if product_data.features is not None:
@@ -2333,6 +2356,68 @@ async def delete_product(product_id: str, request: Request, admin_user: dict = D
     )
     
     return {"message": "Product deleted successfully"}
+
+# ============ ADMIN: PRODUCT IMPORT & SHOPIFY ============
+
+@api_router.post("/admin/products/import/preview")
+async def preview_product_import(import_request: ProductImportRequest, admin_user: dict = Depends(get_admin_user)):
+    """Fetch a product page from another site and return its details (nothing is saved)"""
+    try:
+        return await run_in_threadpool(product_importer.extract_product, import_request.url)
+    except product_importer.ProductImportError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@api_router.get("/admin/shopify/status")
+async def get_shopify_status(admin_user: dict = Depends(get_admin_user)):
+    """Whether live Shopify sync is configured"""
+    return {"configured": shopify_client.is_configured(), "store_domain": shopify_client.store_domain()}
+
+@api_router.post("/admin/products/{product_id}/shopify")
+async def push_product_to_shopify(
+    product_id: str,
+    push_request: ShopifyPushRequest,
+    request: Request,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Create this product in the connected Shopify store"""
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    status = push_request.status.upper()
+    if status not in ("DRAFT", "ACTIVE"):
+        raise HTTPException(status_code=400, detail="status must be DRAFT or ACTIVE")
+    try:
+        result = await run_in_threadpool(shopify_client.create_product, product, status)
+    except shopify_client.ShopifyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    await db.products.update_one({"id": product_id}, {"$set": {
+        "shopify_product_id": result["id"],
+        "shopify_handle": result["handle"],
+        "shopify_admin_url": result["admin_url"],
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }})
+    await cache.invalidate_product(product_id)
+    await log_audit(admin_user, "UPDATE", "product", product_id, {"shopify": result["id"]}, request)
+    return result
+
+@api_router.get("/admin/products/export/shopify-csv")
+async def export_products_shopify_csv(
+    ids: Optional[str] = Query(None, description="Comma-separated product ids; all products when omitted"),
+    status: str = Query("draft"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Download products as a CSV for Shopify admin -> Products -> Import"""
+    query = {}
+    if ids:
+        query["id"] = {"$in": [i.strip() for i in ids.split(",") if i.strip()]}
+    products = await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    csv_text = shopify_client.products_to_csv(products, "active" if status == "active" else "draft")
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="shopify-products.csv"'}
+    )
 
 @api_router.get("/admin/products/categories/list")
 async def get_product_categories(admin_user: dict = Depends(get_admin_user)):

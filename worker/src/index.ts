@@ -14,6 +14,10 @@ export class Backend extends Container {
     CORS_ORIGINS: env.CORS_ORIGINS ?? "https://instabooks.digital,https://www.instabooks.digital",
     REDIS_URL: env.REDIS_URL ?? "",
     STRIPE_API_KEY: env.STRIPE_API_KEY ?? "",
+    SHOPIFY_STORE_DOMAIN: env.SHOPIFY_STORE_DOMAIN ?? "",
+    SHOPIFY_CLIENT_ID: env.SHOPIFY_CLIENT_ID ?? "",
+    SHOPIFY_CLIENT_SECRET: env.SHOPIFY_CLIENT_SECRET ?? "",
+    SHOPIFY_ADMIN_ACCESS_TOKEN: env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? "",
   };
 }
 

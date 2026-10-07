@@ -10,7 +10,7 @@ COPY backend/requirements.prod.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/emergentintegrations ./emergentintegrations
-COPY backend/redis_cache.py backend/server.py ./
+COPY backend/*.py ./
 
 EXPOSE 8080
 
