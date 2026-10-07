@@ -145,6 +145,9 @@ def empty_product(source_url: str) -> Dict[str, Any]:
         "features": [],
         "images": [],
         "in_stock": True,
+        # Sizes/colors etc. Empty for single-variant products.
+        "options": [],   # [{"name": "Size", "values": ["S", "M"]}]
+        "variants": [],  # [{"options": ["S"], "price", "original_price", "sku", "available"}]
         "source": None,
     }
 
@@ -163,11 +166,39 @@ def _shopify_json_url(url: str) -> Optional[str]:
     return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
 
 
+MAX_VARIANTS = 250
+
+
+def _shopify_variants(product: Dict[str, Any]):
+    """Options and variants from Shopify product JSON (none for "Default Title" products)."""
+    options = [
+        {"name": str(o.get("name") or f"Option {i + 1}"), "values": [str(v) for v in o.get("values") or []]}
+        for i, o in enumerate(product.get("options") or [])
+    ][:3]
+    variants = []
+    for v in (product.get("variants") or [])[:MAX_VARIANTS]:
+        values = [v.get(f"option{i + 1}") for i in range(len(options))]
+        if any(value is None for value in values):
+            continue
+        variants.append({
+            "options": [str(value) for value in values],
+            "price": _to_float(v.get("price")),
+            "original_price": _to_float(v.get("compare_at_price")),
+            "sku": v.get("sku") or "",
+            # .json leaves "available" empty on many stores; only an explicit False means sold out
+            "available": v.get("available") is not False,
+        })
+    if len(variants) <= 1 and (not options or options[0]["values"] in ([], ["Default Title"])):
+        return [], []
+    return options, variants
+
+
 def parse_shopify_product(data: Dict[str, Any], source_url: str) -> Dict[str, Any]:
     product = data.get("product") or {}
     result = empty_product(source_url)
     variants = product.get("variants") or []
     first = variants[0] if variants else {}
+    options, parsed_variants = _shopify_variants(product)
     body = product.get("body_html") or ""
     tags = product.get("tags") or []
     if isinstance(tags, str):
@@ -186,7 +217,9 @@ def parse_shopify_product(data: Dict[str, Any], source_url: str) -> Dict[str, An
         "images": _dedupe_images([
             img["src"] for img in product.get("images") or [] if img.get("src")
         ]),
-        "in_stock": any(v.get("available", True) for v in variants) if variants else True,
+        "in_stock": any(v.get("available") is not False for v in variants) if variants else True,
+        "options": options,
+        "variants": parsed_variants,
         "source": "shopify",
     })
     return result

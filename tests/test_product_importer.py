@@ -121,3 +121,94 @@ def test_shopify_csv_has_extra_image_rows():
     assert "<li>Organic cotton</li>" in rows[0]["Body (HTML)"]
     assert rows[1]["Title"] == "" and rows[1]["Image Position"] == "2"
     assert rows[2]["Image Src"] == ""
+
+
+SHOPIFY_VARIANT_JSON = {
+    "product": {
+        "title": "Runner",
+        "options": [{"name": "Size", "values": ["8", "9", "10"]}, {"name": "Color", "values": ["Black"]}],
+        "variants": [
+            {"option1": "8", "option2": "Black", "price": "100.00", "sku": "R8", "available": None},
+            {"option1": "9", "option2": "Black", "price": "110.00", "compare_at_price": "120.00", "sku": "R9"},
+        ],
+        "images": [],
+    }
+}
+
+
+def test_shopify_variants_parsed():
+    product = product_importer.parse_shopify_product(SHOPIFY_VARIANT_JSON, "https://s.example.com/products/r")
+    assert product["in_stock"] is True  # "available": null is not sold out
+    assert [o["name"] for o in product["options"]] == ["Size", "Color"]
+    assert product["variants"][1] == {
+        "options": ["9", "Black"], "price": 110.0, "original_price": 120.0, "sku": "R9", "available": True,
+    }
+
+
+def test_default_title_product_has_no_variants():
+    data = {"product": {"title": "Mug", "options": [{"name": "Title", "values": ["Default Title"]}],
+                        "variants": [{"option1": "Default Title", "price": "9.00"}]}}
+    product = product_importer.parse_shopify_product(data, "https://s.example.com/products/mug")
+    assert product["options"] == [] and product["variants"] == []
+
+
+def test_variant_rows_drop_unused_option_values():
+    options, variants = shopify_client.variant_rows({
+        "options": [{"name": "Size", "values": ["8", "9", "10"]}],
+        "variants": [{"options": ["9"], "price": 10.0}, {"options": ["8"], "price": 10.0}],
+    })
+    assert options == [{"name": "Size", "values": ["8", "9"]}]
+    assert len(variants) == 2
+
+
+def test_sync_product_sends_variants_and_cost(monkeypatch):
+    sent = {}
+
+    def fake_graphql(query, variables):
+        sent.update(variables)
+        return {"productSet": {"product": {"id": "gid://shopify/Product/5", "handle": "runner"}, "userErrors": []}}
+
+    monkeypatch.setattr(shopify_client, "_graphql", fake_graphql)
+    monkeypatch.setenv("SHOPIFY_STORE_DOMAIN", "demo.myshopify.com")
+    result = shopify_client.sync_product({
+        "title": "Runner", "price": 130.0, "images": ["https://cdn/1.jpg"],
+        "options": [{"name": "Size", "values": ["8", "9"]}],
+        "variants": [
+            {"options": ["8"], "price": 130.0, "cost": 100.0, "sku": "R8"},
+            {"options": ["9"], "price": 143.0, "original_price": 150.0, "cost": 110.0, "sku": "R9"},
+        ],
+    }, "ACTIVE")
+    assert result["admin_url"] == "https://demo.myshopify.com/admin/products/5"
+    product_input = sent["input"]
+    assert sent["identifier"] is None
+    assert product_input["status"] == "ACTIVE"
+    assert product_input["productOptions"] == [
+        {"name": "Size", "position": 1, "values": [{"name": "8"}, {"name": "9"}]}
+    ]
+    assert product_input["variants"][1] == {
+        "optionValues": [{"optionName": "Size", "name": "9"}],
+        "price": "143.00",
+        "compareAtPrice": "150.00",
+        "inventoryItem": {"tracked": False, "sku": "R9", "cost": "110.00"},
+    }
+    assert product_input["files"][0]["originalSource"] == "https://cdn/1.jpg"
+
+    # Re-sync updates in place and leaves images alone
+    shopify_client.sync_product({"title": "Runner", "price": 5.0}, None, "gid://shopify/Product/5")
+    assert sent["identifier"] == {"id": "gid://shopify/Product/5"}
+    assert "files" not in sent["input"] and "status" not in sent["input"]
+    assert sent["input"]["variants"][0]["optionValues"] == [{"optionName": "Title", "name": "Default Title"}]
+
+
+def test_csv_variant_rows():
+    rows = list(csv.DictReader(io.StringIO(shopify_client.products_to_csv([{
+        "id": "p1", "title": "Runner", "price": 130.0,
+        "images": ["https://cdn/1.jpg", "https://cdn/2.jpg", "https://cdn/3.jpg"],
+        "options": [{"name": "Size", "values": ["8", "9"]}],
+        "variants": [{"options": ["8"], "price": 130.0, "cost": 100.0}, {"options": ["9"], "price": 140.0}],
+    }]))))
+    assert len(rows) == 3
+    assert (rows[0]["Option1 Name"], rows[0]["Option1 Value"], rows[0]["Cost per item"]) == ("Size", "8", "100.00")
+    assert (rows[1]["Option1 Name"], rows[1]["Option1 Value"], rows[1]["Variant Price"]) == ("", "9", "140.00")
+    assert rows[1]["Title"] == "" and rows[1]["Image Src"] == "https://cdn/2.jpg"
+    assert rows[2]["Variant Price"] == "" and rows[2]["Image Position"] == "3"

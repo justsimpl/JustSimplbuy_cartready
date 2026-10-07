@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -24,7 +24,13 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
   const [items, setItems] = useState([]);
   const [fetching, setFetching] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [pushToShopify, setPushToShopify] = useState(false);
+  const [pushToShopify, setPushToShopify] = useState(shopifyConfigured);
+  const [shopifyStatus, setShopifyStatus] = useState('DRAFT');
+
+  // Shopify is the main store: send imports there whenever it's connected
+  useEffect(() => {
+    setPushToShopify(shopifyConfigured);
+  }, [shopifyConfigured]);
 
   const reset = () => {
     setUrls('');
@@ -86,14 +92,29 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
     let pushed = 0;
     for (const item of readyItems) {
       const images = item.images.filter(src => !item.excludedImages.includes(src));
+      const yourPrice = parseFloat(item.price) || 0;
+      const sourcePrice = item.data.price;
+      // Variant prices follow the same markup as the main price; the source price is your cost
+      const ratio = sourcePrice ? yourPrice / sourcePrice : 1 + (parseFloat(markup) || 0) / 100;
+      const variants = (item.data.variants || []).map(v => ({
+        options: v.options,
+        price: v.price != null ? Math.round(v.price * ratio * 100) / 100 : yourPrice,
+        original_price: v.original_price,
+        cost: v.price,
+        sku: v.sku,
+        available: v.available,
+      }));
       try {
         const { data: created } = await axios.post(`${API}/admin/products`, {
           title: item.title,
           description: item.data.description || '',
           category: item.category,
           subcategory: item.data.product_type || '',
-          price: parseFloat(item.price) || 0,
+          price: yourPrice,
           original_price: item.original_price ? parseFloat(item.original_price) : null,
+          cost_price: sourcePrice ?? null,
+          options: item.data.options || [],
+          variants,
           brand: item.data.brand || '',
           image_url: images[0] || '',
           images,
@@ -105,7 +126,7 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
 
         if (pushToShopify) {
           try {
-            await axios.post(`${API}/admin/products/${created.id}/shopify`, { status: 'DRAFT' }, { headers: getAuthHeader() });
+            await axios.post(`${API}/admin/products/${created.id}/shopify`, { status: shopifyStatus }, { headers: getAuthHeader() });
             pushed++;
           } catch (error) {
             toast.error(`Shopify: ${item.title}: ${error.response?.data?.detail || 'failed'}`);
@@ -117,7 +138,7 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
     }
     setImporting(false);
     if (saved) {
-      toast.success(`Imported ${saved} product${saved === 1 ? '' : 's'}${pushToShopify ? `, ${pushed} sent to Shopify` : ''}`);
+      toast.success(`Imported ${saved} product${saved === 1 ? '' : 's'}${pushToShopify ? `, ${pushed} added to Shopify` : ''}`);
       reset();
       onOpenChange(false);
       onImported();
@@ -136,6 +157,15 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {!shopifyConfigured && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                Shopify isn't connected yet, so products are only saved here. Upload them with the
+                <strong> Shopify CSV</strong> button, or connect Shopify to send them automatically.
+              </span>
+            </div>
+          )}
           <div>
             <Label htmlFor="import-urls">Product URLs</Label>
             <Textarea
@@ -234,6 +264,12 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
                     {item.data.brand ? ` · Brand: ${item.data.brand}` : ''}
                     {item.data.in_stock === false ? ' · Out of stock at source' : ''}
                   </p>
+                  {item.data.variants?.length > 0 && (
+                    <p className="text-xs text-slate-500" data-testid="import-variants">
+                      {item.data.variants.length} variants ·{' '}
+                      {item.data.options.map(o => `${o.name}: ${o.values.join(', ')}`).join(' · ')}
+                    </p>
+                  )}
                   {item.images.length > 0 ? (
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Images (click to leave one out)</p>
@@ -269,10 +305,24 @@ export function ProductImportDialog({ open, onOpenChange, categories, getAuthHea
 
         <DialogFooter className="flex-col sm:flex-row gap-3 sm:items-center">
           {shopifyConfigured && (
-            <label className="flex items-center gap-2 text-sm mr-auto">
-              <input type="checkbox" checked={pushToShopify} onChange={(e) => setPushToShopify(e.target.checked)} />
-              Also create in Shopify (as draft)
-            </label>
+            <div className="flex items-center gap-3 text-sm mr-auto">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={pushToShopify}
+                  onChange={(e) => setPushToShopify(e.target.checked)}
+                  data-testid="import-to-shopify"
+                />
+                Add to Shopify as
+              </label>
+              <Select value={shopifyStatus} onValueChange={setShopifyStatus} disabled={!pushToShopify}>
+                <SelectTrigger className="w-40 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DRAFT">Draft (hidden)</SelectItem>
+                  <SelectItem value="ACTIVE">Live (for sale)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button

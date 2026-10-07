@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { 
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, 
-  Loader2, Package, DollarSign, Image, Download, Link2, ShoppingBag, ExternalLink
+  Loader2, Package, DollarSign, Image, Download, Link2, ShoppingBag, ExternalLink, RefreshCw
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -86,8 +86,8 @@ export default function AdminProducts() {
   const handlePushToShopify = async (product) => {
     setPushingId(product.id);
     try {
-      await axios.post(`${API}/admin/products/${product.id}/shopify`, { status: 'DRAFT' }, { headers: getAuthHeader() });
-      toast.success('Created in Shopify as a draft');
+      await axios.post(`${API}/admin/products/${product.id}/shopify`, {}, { headers: getAuthHeader() });
+      toast.success(product.shopify_product_id ? 'Updated in Shopify' : 'Added to Shopify as a draft');
       fetchProducts();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to send to Shopify');
@@ -333,24 +333,27 @@ export default function AdminProducts() {
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end gap-2">
-                          {product.shopify_admin_url ? (
+                          {product.shopify_admin_url && (
                             <Button variant="outline" size="sm" asChild title="Open in Shopify">
                               <a href={product.shopify_admin_url} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="w-4 h-4" />
                               </a>
                             </Button>
-                          ) : shopify.configured && (
+                          )}
+                          {shopify.configured && (
                             <Button
                               variant="outline"
                               size="sm"
-                              title="Send to Shopify"
+                              title={product.shopify_product_id ? 'Update in Shopify' : 'Add to Shopify'}
                               disabled={pushingId === product.id}
                               onClick={() => handlePushToShopify(product)}
                               data-testid={`shopify-${product.id}`}
                             >
                               {pushingId === product.id
                                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <ShoppingBag className="w-4 h-4" />}
+                                : product.shopify_product_id
+                                  ? <RefreshCw className="w-4 h-4" />
+                                  : <ShoppingBag className="w-4 h-4" />}
                             </Button>
                           )}
                           <Button 
@@ -519,6 +522,13 @@ export default function AdminProducts() {
                   </Select>
                 </div>
                 
+                {editingProduct?.variants?.length > 0 && (
+                  <p className="col-span-2 text-sm text-slate-500">
+                    This product has {editingProduct.variants.length} variants
+                    ({editingProduct.options.map(o => o.name).join(' / ')}). Changing the price scales all variant prices.
+                  </p>
+                )}
+
                 <div className="col-span-2">
                   <Label htmlFor="images">Image URLs (one per line, first is the main image)</Label>
                   <div className="relative">

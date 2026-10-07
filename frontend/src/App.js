@@ -1,4 +1,5 @@
 import "@/App.css";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { Toaster } from "./components/ui/sonner";
@@ -37,6 +38,16 @@ import AdminAuditLogs from "./pages/admin/AdminAuditLogs";
 import ForgotPasswordPage from "./pages/ForgotPassword";
 import ResetPasswordPage from "./pages/ResetPassword";
 
+// When Shopify is the store, shoppers are sent there and this app only serves /admin
+const SHOPIFY_STORE_URL = process.env.REACT_APP_SHOPIFY_STORE_URL;
+
+const ShopifyRedirect = () => {
+  useEffect(() => {
+    window.location.replace(SHOPIFY_STORE_URL);
+  }, []);
+  return null;
+};
+
 // Layout component for pages that need navbar
 const Layout = ({ children, showNavbar = true }) => {
   return (
@@ -52,6 +63,10 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {SHOPIFY_STORE_URL ? (
+            <Route path="*" element={<ShopifyRedirect />} />
+          ) : (
+          <>
           {/* Pages with their own navbar or no navbar */}
           <Route path="/" element={<HomePage />} />
           <Route path="/search" element={<SearchPage />} />
@@ -71,12 +86,14 @@ function App() {
           {/* Auth pages - no navbar */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          </>
+          )}
 
           {/* Admin login - public */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
 
           {/* Password Reset - public */}
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
 

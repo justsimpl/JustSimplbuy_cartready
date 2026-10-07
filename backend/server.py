@@ -224,6 +224,18 @@ class AdminUserResponse(BaseModel):
 
 # ============ ADMIN PRODUCT MODELS ============
 
+class ProductOption(BaseModel):
+    name: str
+    values: List[str] = []
+
+class ProductVariant(BaseModel):
+    options: List[str]  # one value per product option, e.g. ["M", "Blue"]
+    price: float
+    original_price: Optional[float] = None
+    cost: Optional[float] = None  # what you pay the supplier
+    sku: str = ""
+    available: bool = True
+
 class ProductCreate(BaseModel):
     title: str
     description: str
@@ -236,6 +248,9 @@ class ProductCreate(BaseModel):
     image_url: str = ""
     images: List[str] = []
     source_url: str = ""
+    cost_price: Optional[float] = None
+    options: List[ProductOption] = []
+    variants: List[ProductVariant] = []
     brand: str = ""
     features: List[str] = []
     in_stock: bool = True
@@ -251,6 +266,9 @@ class ProductUpdate(BaseModel):
     reviews_count: Optional[int] = None
     image_url: Optional[str] = None
     images: Optional[List[str]] = None
+    cost_price: Optional[float] = None
+    options: Optional[List[ProductOption]] = None
+    variants: Optional[List[ProductVariant]] = None
     brand: Optional[str] = None
     features: Optional[List[str]] = None
     in_stock: Optional[bool] = None
@@ -259,7 +277,7 @@ class ProductImportRequest(BaseModel):
     url: str
 
 class ShopifyPushRequest(BaseModel):
-    status: str = "DRAFT"  # DRAFT or ACTIVE
+    status: Optional[str] = None  # DRAFT or ACTIVE; new products default to DRAFT, updates keep their status
 
 # ============ PASSWORD RESET MODELS ============
 
@@ -2255,6 +2273,9 @@ async def create_product(product_data: ProductCreate, request: Request, admin_us
         "image_url": image_url,
         "images": images,
         "source_url": product_data.source_url or "",
+        "cost_price": product_data.cost_price,
+        "options": [o.model_dump() for o in product_data.options],
+        "variants": [v.model_dump() for v in product_data.variants],
         "brand": product_data.brand or "",
         "features": product_data.features or [],
         "in_stock": product_data.in_stock,
@@ -2300,6 +2321,13 @@ async def update_product(product_id: str, product_data: ProductUpdate, request: 
     if product_data.price is not None:
         update_data["price"] = product_data.price
         changes["price"] = {"from": product.get("price"), "to": product_data.price}
+        # Keep size/color prices in proportion when only the main price was edited
+        if product_data.variants is None and product.get("variants") and product.get("price"):
+            ratio = product_data.price / product["price"]
+            update_data["variants"] = [
+                {**v, "price": round((v.get("price") or product["price"]) * ratio, 2)}
+                for v in product["variants"]
+            ]
     if product_data.original_price is not None:
         update_data["original_price"] = product_data.original_price
     if product_data.rating is not None:
@@ -2312,6 +2340,12 @@ async def update_product(product_id: str, product_data: ProductUpdate, request: 
         update_data["images"] = [img for img in product_data.images if img]
         if product_data.image_url is None:
             update_data["image_url"] = update_data["images"][0] if update_data["images"] else ""
+    if product_data.cost_price is not None:
+        update_data["cost_price"] = product_data.cost_price
+    if product_data.options is not None:
+        update_data["options"] = [o.model_dump() for o in product_data.options]
+    if product_data.variants is not None:
+        update_data["variants"] = [v.model_dump() for v in product_data.variants]
     if product_data.brand is not None:
         update_data["brand"] = product_data.brand
     if product_data.features is not None:
@@ -2379,15 +2413,17 @@ async def push_product_to_shopify(
     request: Request,
     admin_user: dict = Depends(get_admin_user)
 ):
-    """Create this product in the connected Shopify store"""
+    """Create this product in the connected Shopify store, or update it if it was sent before"""
     product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    status = push_request.status.upper()
-    if status not in ("DRAFT", "ACTIVE"):
+    status = push_request.status.upper() if push_request.status else None
+    if status not in (None, "DRAFT", "ACTIVE"):
         raise HTTPException(status_code=400, detail="status must be DRAFT or ACTIVE")
     try:
-        result = await run_in_threadpool(shopify_client.create_product, product, status)
+        result = await run_in_threadpool(
+            shopify_client.sync_product, product, status, product.get("shopify_product_id")
+        )
     except shopify_client.ShopifyError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
