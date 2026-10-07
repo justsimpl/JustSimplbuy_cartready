@@ -12,7 +12,8 @@
     "start:backend": "cd ../backend && python -m uvicorn server:app --reload",
     "test:frontend": "cd ../frontend && npm test -- --watchAll=false",
     "test:backend": "cd ../backend && python -m pytest tests -v",
-    "deploy": "npm run build:frontend:cloudflare && wrangler deploy",
+    "deploy": "npm run build:frontend:cloudflare && wrangler pages deploy ../frontend/build --project-name instabooks --branch main",
+    "deploy:worker": "npm run build:frontend:cloudflare && wrangler deploy",
     "dev:worker": "wrangler dev"
   },
   "engines": {
