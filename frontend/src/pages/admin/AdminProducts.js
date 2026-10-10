@@ -18,10 +18,8 @@ import {
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const CATEGORY_OPTIONS = [
-  'electronics', 'books', 'fashion', 'home', 'sports', 
-  'beauty', 'toys', 'automotive', 'health', 'garden'
-];
+// Each category becomes a cat-<category> tag in Shopify, which places the product in that collection
+const CATEGORY_OPTIONS = ['adults', 'kids', 'masks', 'accessories', 'pets', 'holiday'];
 
 export default function AdminProducts() {
   const { getAuthHeader } = useAuth();
@@ -45,7 +43,7 @@ export default function AdminProducts() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: 'electronics',
+    category: 'adults',
     subcategory: '',
     price: '',
     original_price: '',
@@ -125,7 +123,7 @@ export default function AdminProducts() {
     setFormData({
       title: '',
       description: '',
-      category: 'electronics',
+      category: 'adults',
       subcategory: '',
       price: '',
       original_price: '',
@@ -142,7 +140,7 @@ export default function AdminProducts() {
     setFormData({
       title: product.title || '',
       description: product.description || '',
-      category: product.category || 'electronics',
+      category: product.category || 'adults',
       subcategory: product.subcategory || '',
       price: product.price?.toString() || '',
       original_price: product.original_price?.toString() || '',

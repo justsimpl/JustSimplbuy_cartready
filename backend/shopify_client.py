@@ -144,6 +144,14 @@ def _images(product: Dict[str, Any]) -> List[str]:
     return images
 
 
+def _tags(product: Dict[str, Any]) -> List[str]:
+    """The store's collections select products by their cat-<category> tag."""
+    tags = [f"cat-{product['category']}"] if product.get("category") else []
+    if product.get("subcategory"):
+        tags.append(product["subcategory"])
+    return tags
+
+
 def _money(value: Optional[float]) -> Optional[str]:
     return f"{value:.2f}" if value is not None else None
 
@@ -202,7 +210,7 @@ def sync_product(product: Dict[str, Any], status: Optional[str] = None,
         "descriptionHtml": _description_html(product),
         "vendor": product.get("brand") or "",
         "productType": product.get("subcategory") or product.get("category") or "",
-        "tags": [t for t in [product.get("category"), product.get("subcategory")] if t],
+        "tags": _tags(product),
         "productOptions": [
             {"name": o["name"], "position": i + 1, "values": [{"name": v} for v in o["values"]]}
             for i, o in enumerate(options)
@@ -211,7 +219,13 @@ def sync_product(product: Dict[str, Any], status: Optional[str] = None,
     }
     if status or not existing_id:
         product_input["status"] = status or "DRAFT"
-    if not existing_id:
+    if existing_id:
+        # productSet replaces the whole tag list; keep tags added in Shopify, swap only the category tag
+        current = (_graphql("query($id: ID!) { product(id: $id) { tags } }", {"id": existing_id}).get("product")
+                   or {}).get("tags") or []
+        kept = [t for t in current if not t.startswith("cat-") and t not in product_input["tags"]]
+        product_input["tags"] = product_input["tags"] + kept
+    else:
         product_input["files"] = [
             {"originalSource": src, "contentType": "IMAGE", "alt": product["title"]}
             for src in _images(product)
@@ -295,7 +309,7 @@ def products_to_csv(products: List[Dict[str, Any]], status: Optional[str] = "dra
             "Body (HTML)": _description_html(product),
             "Vendor": product.get("brand", ""),
             "Type": product.get("subcategory") or product.get("category", ""),
-            "Tags": ", ".join(t for t in [product.get("category"), product.get("subcategory")] if t),
+            "Tags": ", ".join(_tags(product)),
             "Published": "TRUE" if status == "active" else "FALSE",
             "Status": status or "draft",
         })
