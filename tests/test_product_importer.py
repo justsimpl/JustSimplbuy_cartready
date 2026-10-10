@@ -200,6 +200,24 @@ def test_sync_product_sends_variants_and_cost(monkeypatch):
     assert sent["input"]["variants"][0]["optionValues"] == [{"optionName": "Title", "name": "Default Title"}]
 
 
+def test_sync_product_swaps_only_the_category_tag(monkeypatch):
+    sent = {}
+
+    def fake_graphql(query, variables):
+        if "productSet" not in query:
+            return {"product": {"tags": ["cat-adults", "Halloween", "Mask"]}}
+        sent.update(variables)
+        return {"productSet": {"product": {"id": "gid://shopify/Product/5", "handle": "m"}, "userErrors": []}}
+
+    monkeypatch.setattr(shopify_client, "_graphql", fake_graphql)
+    product = {"title": "Mask", "price": 5.0, "category": "masks", "subcategory": "Mask"}
+    shopify_client.sync_product(product)
+    assert sent["input"]["tags"] == ["cat-masks", "Mask"]
+
+    shopify_client.sync_product(product, None, "gid://shopify/Product/5")
+    assert sent["input"]["tags"] == ["cat-masks", "Mask", "Halloween"]
+
+
 def test_csv_variant_rows():
     rows = list(csv.DictReader(io.StringIO(shopify_client.products_to_csv([{
         "id": "p1", "title": "Runner", "price": 130.0,
