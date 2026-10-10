@@ -33,12 +33,17 @@ The original built-in storefront (Stripe checkout) still works when Shopify isn'
   ```
   Output: `frontend/build/` — deploy to any static host (Vercel, Netlify, S3, Cloudflare Pages, etc.).
 
-- **Cloudflare Workers** (optional full-stack): tooling lives in `deploy/`:
+- **Cloudflare Pages** (the admin app): `admin.instabooks.digital` is served by the Cloudflare Pages project
+  `instabooks` (direct upload, not connected to GitHub), so merging to `main` does not update it.
+  `instabooks.digital` and `www.instabooks.digital` point at the Shopify store. Deploy from `deploy/`:
   ```bash
   cd deploy
   npm install
-  npm run deploy
+  npx wrangler login   # once
+  npm run deploy       # builds against https://api.instabooks.digital, storefront pages redirect to Shopify
   ```
+  `npm run deploy:worker` deploys the unused full-stack Worker in `wrangler.jsonc` (needs Docker and
+  Cloudflare Containers); it does not serve any of the domains above.
 
 - **Backend (Railway / Render)**: use the root `Dockerfile` (FastAPI on port 8080). Set `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, and `CORS_ORIGINS` in the host dashboard.
 
@@ -47,7 +52,7 @@ The original built-in storefront (Stripe checkout) still works when Shopify isn'
 1. Create a service from this repo (branch `main`).
 2. In **Settings → Build**, set **Builder** to **Dockerfile** and path `Dockerfile` (repo root).
 3. If builds still show Railpack/Node, add service variable: `RAILWAY_DOCKERFILE_PATH=Dockerfile`.
-4. Set variables: `MONGO_URL`, `DB_NAME=justsimplbuy`, `JWT_SECRET`, `ENV=production`, `CORS_ORIGINS=https://instabooks.digital,https://www.instabooks.digital`.
+4. Set variables: `MONGO_URL`, `DB_NAME=justsimplbuy`, `JWT_SECRET`, `ENV=production`, `CORS_ORIGINS=https://admin.instabooks.digital,https://main.instabooks.pages.dev`.
 5. Health check path: `/api/health`. Railway sets `PORT` automatically.
 
 Alternative: set **Root Directory** to `backend` and use `Dockerfile.prod` (see `backend/railway.toml`).
@@ -142,8 +147,9 @@ format: Shopify admin → **Products → Import**.
 
 ### Send shoppers to Shopify
 
-Build the frontend with `REACT_APP_SHOPIFY_STORE_URL=https://your-shop-domain` (in the Cloudflare build
-settings). Every storefront page then redirects to the Shopify store, and only `/admin` keeps working here.
+Build the frontend with `REACT_APP_SHOPIFY_STORE_URL=https://your-shop-domain`. `npm run deploy` in `deploy/`
+already sets it to `https://instabooks.digital`. Every storefront page then redirects to the Shopify store, and
+only `/admin` keeps working here.
 
 ### Going-live checklist (done in Shopify / your domain registrar)
 
@@ -151,8 +157,10 @@ settings). Every storefront page then redirects to the Shopify store, and only `
 2. **Settings → Shipping and delivery**, **Taxes and duties**, and **Policies** (refund, privacy, terms).
 3. **Online Store → Themes**: pick and customize a theme.
 4. **Settings → Domains**: connect your domain to Shopify. If that is `instabooks.digital`, move this admin
-   app to another hostname first (for example `admin.instabooks.digital`): change `routes` in
-   `deploy/wrangler.jsonc` and `CORS_ORIGINS` / `ALLOWED_HOSTS` to match.
+   app to another hostname first (for example `admin.instabooks.digital`): add it as a custom domain on the
+   `instabooks` Pages project, add it to `CORS_ORIGINS` on Railway, then remove `instabooks.digital` and
+   `www.instabooks.digital` from the Pages project before pointing their DNS records at Shopify
+   (DNS only, not proxied).
 5. Delete the demo products in this app's admin (Sony, Apple, LEGO, ...) so they never get sent to Shopify.
 
 ## Production security
